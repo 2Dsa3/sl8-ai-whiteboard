@@ -1,9 +1,11 @@
 // Main application logic for TutorIA - Clean version without duplications
 
+import { Whiteboard } from './draw.js';
+
 class TutorIA {
     constructor() {
         // API Configuration
-        this.apiKey = 'your-apiKey-here';
+        this.apiKey = import.meta.env?.VITE_GEMINI_API_KEY || 'your-apiKey-here';
 
         this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
@@ -194,6 +196,11 @@ Responde en español de manera comprensiva y educativa.`
             const undoAction = document.getElementById('undo-action');
             if (undoAction) {
                 undoAction.addEventListener('click', this.undoAction.bind(this));
+            }
+
+            const redoAction = document.getElementById('redo-action');
+            if (redoAction) {
+                redoAction.addEventListener('click', this.redoAction.bind(this));
             }
 
             // Drawing tools
@@ -538,6 +545,19 @@ Responde en español de manera comprensiva y educativa.`
             }
         } else {
             this.showError('Función de deshacer no disponible en este momento.');
+        }
+    }
+
+    redoAction() {
+        if (window.whiteboard && window.whiteboard.redo) {
+            const success = window.whiteboard.redo();
+            if (success) {
+                this.showExerciseSuccess('↷ Acción rehecha');
+            } else {
+                this.showError('No hay acciones para rehacer.');
+            }
+        } else {
+            this.showError('Función de rehacer no disponible en este momento.');
         }
     }
 

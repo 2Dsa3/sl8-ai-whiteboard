@@ -1,0 +1,25 @@
+{
+  "name": "sl8-ai-whiteboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "SL8.ai - Visual Debugging Whiteboard for Algorithmic Thinking",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve": "vite preview --port 4173"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "keywords": [
+    "ai",
+    "whiteboard",
+    "education",
+    "algorithms",
+    "tutoring"
+  ],
+  "author": "SL8.ai Team",
+  "license": "MIT"
+}

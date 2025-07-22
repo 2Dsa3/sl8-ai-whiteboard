@@ -17,6 +17,7 @@ class Whiteboard {
         this.mode = 'pen'; // 'pen' or 'eraser'
         this.brushSize = 5;
         this.history = [];
+        this.historyIndex = -1;
 
         this.resizeCanvas();
         this.bindEvents();
@@ -114,26 +115,46 @@ class Whiteboard {
     }
     
     saveState() {
+        // Remove any redo history when a new action is performed
+        this.history = this.history.slice(0, this.historyIndex + 1);
+        
         if (this.history.length > 20) { // Limitar el historial
             this.history.shift();
+        } else {
+            this.historyIndex++;
         }
         this.history.push(this.context.getImageData(0, 0, this.canvas.width, this.canvas.height));
     }
     
     undo() {
-        if (this.history.length > 1) {
-            this.history.pop(); // Elimina el estado actual
-            const lastState = this.history[this.history.length - 1];
-            this.context.putImageData(lastState, 0, 0);
-        } else {
-             // Si solo queda el estado inicial, limpia el canvas
-            this.clearCanvas(false); // false para no guardar un nuevo estado vacío
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            const previousState = this.history[this.historyIndex];
+            this.context.putImageData(previousState, 0, 0);
+            return true;
+        } else if (this.historyIndex === 0) {
+            // Go to initial blank state
+            this.historyIndex = -1;
+            this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            return true;
         }
+        return false;
+    }
+    
+    redo() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            const nextState = this.history[this.historyIndex];
+            this.context.putImageData(nextState, 0, 0);
+            return true;
+        }
+        return false;
     }
     
     clearCanvas(save = true) {
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.history = []; // Limpiar historial
+        this.historyIndex = -1;
         if (save) {
             this.saveState(); // Guardar el estado en blanco como inicial
         }
@@ -193,4 +214,6 @@ class Whiteboard {
 }
 
 // Export the Whiteboard class for use by main.js
+export { Whiteboard };
+
 // No DOMContentLoaded listener here - main.js will handle initialization

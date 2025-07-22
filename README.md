@@ -1,4 +1,6 @@
-# SL8.ai
+# SL8.ai 
+
+*Think first, code later*
 
 ## The Visual Debugging Whiteboard for Algorithmic Thinking
 

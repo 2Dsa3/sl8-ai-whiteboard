@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SL8 - AI</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom styles for the overlay layout */
         .canvas-container {
             position: relative;
         }
@@ -170,7 +168,6 @@
 
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto p-4">
-        <!-- Header -->
         <header class="text-center mb-4">
             <h1 class="text-3xl font-bold text-gray-800">SL8 - AI</h1>
         </header>
@@ -208,6 +205,11 @@
                         class="bg-gray-500 hover:bg-gray-600 text-white w-12 h-12 rounded-full shadow-lg font-medium flex items-center justify-center text-xl"
                         title="Deshacer">
                         ↶
+                    </button>
+                    <button id="redo-action"
+                        class="bg-green-500 hover:bg-green-600 text-white w-12 h-12 rounded-full shadow-lg font-medium flex items-center justify-center text-xl"
+                        title="Rehacer">
+                        ↷
                     </button>
                     <button id="clear-all"
                         class="bg-red-500 hover:bg-red-600 text-white w-12 h-12 rounded-full shadow-lg font-medium flex items-center justify-center text-xl"

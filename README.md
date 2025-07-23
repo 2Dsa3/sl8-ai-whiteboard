@@ -1,4 +1,6 @@
-# SL8.ai
+# SL8.ai 
+
+![Think First, Code Later](https://img.shields.io/badge/philosophy-think--first--code--later-blueviolet)
 
 ## The Visual Debugging Whiteboard for Algorithmic Thinking
 

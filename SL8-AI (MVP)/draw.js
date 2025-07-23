@@ -12,6 +12,9 @@ class Whiteboard {
         this.context = this.canvas.getContext('2d');
         console.log('🎨 Canvas context:', this.context);
         
+        // Configure canvas for optimal stylus/touch performance
+        this.canvas.style.touchAction = 'none';
+        
         this.eraserCursor = document.getElementById(cursorId);
         this.isDrawing = false;
         this.mode = 'pen'; // 'pen' or 'eraser'
@@ -29,28 +32,133 @@ class Whiteboard {
     bindEvents() {
         console.log('🎯 Binding events to canvas');
         window.addEventListener('resize', () => this.resizeCanvas());
-        this.canvas.addEventListener('mousedown', (e) => {
-            console.log('🖱️ Mouse down event triggered');
-            this.startDrawing(e);
-        });
-        this.canvas.addEventListener('mouseup', () => {
-            console.log('🖱️ Mouse up event triggered');
-            this.stopDrawing();
-        });
-        this.canvas.addEventListener('mouseleave', () => {
-            this.isDrawing = false;
-            if (this.eraserCursor) this.eraserCursor.style.display = 'none';
-        });
-        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
-
-        // Eventos para el cursor personalizado del borrador
-        this.canvas.addEventListener('mouseenter', () => {
-            if (this.mode === 'eraser' && this.eraserCursor) {
-                this.eraserCursor.style.display = 'block';
-            }
-        });
+        
+        // Modern pointer events (supports mouse, pen, touch)
+        if ('PointerEvent' in window) {
+            console.log('🎯 Using Pointer Events API');
+            this.canvas.addEventListener('pointerdown', (e) => this.handlePointerStart(e));
+            this.canvas.addEventListener('pointermove', (e) => this.handlePointerMove(e));
+            this.canvas.addEventListener('pointerup', (e) => this.handlePointerEnd(e));
+            this.canvas.addEventListener('pointerleave', (e) => this.handlePointerLeave(e));
+            this.canvas.addEventListener('pointerenter', (e) => this.handlePointerEnter(e));
+        } else {
+            // Fallback to mouse and touch events for older browsers
+            console.log('🎯 Using fallback mouse/touch events');
+            
+            // Mouse events
+            this.canvas.addEventListener('mousedown', (e) => this.handlePointerStart(e));
+            this.canvas.addEventListener('mousemove', (e) => this.handlePointerMove(e));
+            this.canvas.addEventListener('mouseup', (e) => this.handlePointerEnd(e));
+            this.canvas.addEventListener('mouseleave', (e) => this.handlePointerLeave(e));
+            this.canvas.addEventListener('mouseenter', (e) => this.handlePointerEnter(e));
+            
+            // Touch events for mobile/tablet
+            this.canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    this.handlePointerStart(this.createEventFromTouch(e.touches[0], e));
+                }
+            });
+            this.canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    this.handlePointerMove(this.createEventFromTouch(e.touches[0], e));
+                }
+            });
+            this.canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.handlePointerEnd(e);
+            });
+        }
         
         console.log('✅ Events bound successfully');
+    }
+
+    // Unified pointer event handlers
+    handlePointerStart(e) {
+        const coords = this.getEventCoordinates(e);
+        const inputType = this.getInputType(e);
+        
+        console.log(`🎯 ${inputType} down at:`, coords.x, coords.y);
+        
+        // Prevent default to avoid scrolling on touch devices
+        if (e.preventDefault) e.preventDefault();
+        
+        this.startDrawing(coords);
+    }
+
+    handlePointerMove(e) {
+        const coords = this.getEventCoordinates(e);
+        
+        // Update eraser cursor position
+        if (this.mode === 'eraser' && this.eraserCursor) {
+            this.eraserCursor.style.left = `${e.clientX}px`;
+            this.eraserCursor.style.top = `${e.clientY}px`;
+        }
+        
+        this.draw(coords);
+    }
+
+    handlePointerEnd(e) {
+        const inputType = this.getInputType(e);
+        console.log(`🎯 ${inputType} up`);
+        
+        this.stopDrawing();
+    }
+
+    handlePointerLeave(e) {
+        this.isDrawing = false;
+        if (this.eraserCursor) this.eraserCursor.style.display = 'none';
+    }
+
+    handlePointerEnter(e) {
+        if (this.mode === 'eraser' && this.eraserCursor) {
+            this.eraserCursor.style.display = 'block';
+        }
+    }
+
+    // Get normalized coordinates from any event type
+    getEventCoordinates(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // Handle different event types
+        let clientX, clientY;
+        
+        if (e.touches && e.touches.length > 0) {
+            // Touch event
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            // Mouse or pointer event
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    // Get input type for debugging
+    getInputType(e) {
+        if (e.pointerType) {
+            return e.pointerType; // 'mouse', 'pen', 'touch'
+        } else if (e.type && e.type.startsWith('touch')) {
+            return 'touch';
+        } else {
+            return 'mouse';
+        }
+    }
+
+    // Create normalized event from touch for fallback
+    createEventFromTouch(touch, originalEvent) {
+        return {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            preventDefault: () => originalEvent.preventDefault(),
+            type: 'touch'
+        };
     }
 
     resizeCanvas() {
@@ -80,11 +188,11 @@ class Whiteboard {
         }
     }
 
-    startDrawing(e) {
-        console.log('🖱️ Start drawing at:', e.offsetX, e.offsetY);
+    startDrawing(coords) {
+        console.log('🖱️ Start drawing at:', coords.x, coords.y);
         this.isDrawing = true;
         this.context.beginPath();
-        this.context.moveTo(e.offsetX, e.offsetY);
+        this.context.moveTo(coords.x, coords.y);
     }
 
     stopDrawing() {
@@ -95,13 +203,7 @@ class Whiteboard {
         }
     }
 
-    draw(e) {
-        // Mover el cursor personalizado del borrador
-        if (this.mode === 'eraser' && this.eraserCursor) {
-            this.eraserCursor.style.left = `${e.clientX}px`;
-            this.eraserCursor.style.top = `${e.clientY}px`;
-        }
-
+    draw(coords) {
         if (!this.isDrawing) return;
 
         // Tamaño estático pequeño para el lápiz, tamaño variable para el borrador
@@ -110,7 +212,7 @@ class Whiteboard {
         this.context.strokeStyle = this.mode === 'pen' ? '#000000' : '#FFFFFF'; // Blanco para borrar
         this.context.globalCompositeOperation = this.mode === 'pen' ? 'source-over' : 'destination-out';
 
-        this.context.lineTo(e.offsetX, e.offsetY);
+        this.context.lineTo(coords.x, coords.y);
         this.context.stroke();
     }
     

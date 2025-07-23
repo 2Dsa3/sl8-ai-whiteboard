@@ -197,18 +197,34 @@ class Whiteboard {
     
     isEmpty() {
         try {
+            // If we have history, check if we have more than just the initial blank state
+            if (this.history.length > 1) {
+                console.log('🔍 isEmpty() check - Has history:', this.history.length, 'states');
+                return false; // We have drawn something if there's more than initial state
+            }
+
+            // Check pixel data as fallback
             const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
-            const pixelBuffer = new Uint32Array(imageData.data.buffer);
-            const hasContent = pixelBuffer.some(color => color !== 0);
             
-            // Debug log
-            console.log('🔍 isEmpty() check - Canvas size:', this.canvas.width, 'x', this.canvas.height);
-            console.log('🔍 isEmpty() check - Has content:', hasContent);
+            // Check for any non-transparent pixels (alpha > 0) or non-white pixels
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const r = imageData.data[i];     // Red
+                const g = imageData.data[i + 1]; // Green
+                const b = imageData.data[i + 2]; // Blue
+                const a = imageData.data[i + 3]; // Alpha
+                
+                // If we find any pixel that is not transparent and not white, canvas is not empty
+                if (a > 0 && (r !== 255 || g !== 255 || b !== 255)) {
+                    console.log('🔍 isEmpty() check - Found non-white pixel');
+                    return false;
+                }
+            }
             
-            return !hasContent;
+            console.log('🔍 isEmpty() check - Canvas is empty (all white/transparent pixels)');
+            return true;
         } catch (error) {
             console.error('❌ Error in isEmpty():', error);
-            return true; // Si hay error, asumimos que está vacío
+            return false; // If error, assume it's not empty to be safe
         }
     }
 }

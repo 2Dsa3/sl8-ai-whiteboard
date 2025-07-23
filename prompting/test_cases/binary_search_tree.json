@@ -1,0 +1,106 @@
+{
+  "test_suite_name": "Binary Search Tree Problems",
+  "description": "Test cases for BST-related tutoring scenarios",
+  "test_cases": [
+    {
+      "id": "bst_validation_1",
+      "problem_type": "BST Validation",
+      "student_query": "How do I check if a binary tree is a valid BST?",
+      "student_work": "Drew a tree with some nodes, wrote: check left < root < right for each node",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "intermediate",
+        "previous_attempts": 1,
+        "struggling_indicators": ["missed range constraints", "only checking immediate children"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student understands basic BST property but missing range constraints",
+        "hint_level": "Level 2 - Directional hint about ranges",
+        "pedagogical_approach": "Build on their correct understanding, introduce range concept"
+      },
+      "success_criteria": [
+        "AI recognizes partial correctness of approach",
+        "AI introduces range/bounds concept without full solution",
+        "AI asks guiding questions about edge cases"
+      ]
+    },
+    {
+      "id": "bst_insertion_stuck",
+      "problem_type": "BST Insertion",
+      "student_query": "I'm stuck on inserting into BST recursively",
+      "student_work": "Started recursive function but confused about base case and return values",
+      "context": {
+        "has_drawing": false,
+        "skill_level": "beginner",
+        "previous_attempts": 2,
+        "struggling_indicators": ["base case confusion", "return value uncertainty"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student needs help with recursive thinking and tree modification",
+        "hint_level": "Level 1 - Gentle nudge about what happens when we find null",
+        "pedagogical_approach": "Socratic questioning about recursion basics"
+      },
+      "success_criteria": [
+        "AI asks about base case understanding",
+        "AI connects to general recursion patterns",
+        "AI doesn't give away the implementation"
+      ]
+    },
+    {
+      "id": "bst_debugging_infinite_loop",
+      "problem_type": "BST Debugging",
+      "student_query": "My BST search function never terminates",
+      "student_work": "Code with infinite loop in search function",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "intermediate",
+        "previous_attempts": 3,
+        "struggling_indicators": ["infinite loop", "debugging confusion"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Debugging help needed - guide through systematic debugging",
+        "hint_level": "Debug flow - start with trace-through",
+        "pedagogical_approach": "Teach debugging methodology"
+      },
+      "success_criteria": [
+        "AI guides systematic debugging approach",
+        "AI helps student trace through execution",
+        "AI teaches debugging technique, not just fix"
+      ]
+    },
+    {
+      "id": "bst_solution_request",
+      "problem_type": "BST Complete Solution",
+      "student_query": "Can you show me the complete solution for BST deletion?",
+      "student_work": "Attempted deletion but handled only simple cases",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "advanced",
+        "previous_attempts": 4,
+        "struggling_indicators": ["complex case handling", "multiple scenarios confusion"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student ready for complete solution with educational focus",
+        "hint_level": "Full solution with educational breakdown",
+        "pedagogical_approach": "Acknowledge attempt, explain complex cases systematically"
+      },
+      "success_criteria": [
+        "AI acknowledges student's partial success",
+        "AI breaks down three deletion cases clearly",
+        "AI connects to broader algorithmic patterns"
+      ]
+    }
+  ],
+  "evaluation_metrics": {
+    "response_appropriateness": "Does AI response match expected behavior for student's level?",
+    "pedagogical_soundness": "Does response promote learning vs just giving answers?",
+    "hint_progression": "Does AI start with appropriate hint level?",
+    "engagement_quality": "Does response encourage continued problem-solving?"
+  },
+  "common_failure_patterns": [
+    "AI gives full solution when hint would suffice",
+    "AI doesn't recognize student's partial understanding",
+    "AI uses overly technical language for beginner",
+    "AI doesn't connect to student's existing work"
+  ]
+}

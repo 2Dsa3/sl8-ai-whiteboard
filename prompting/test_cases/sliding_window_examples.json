@@ -1,0 +1,143 @@
+{
+  "test_suite_name": "Sliding Window & Two Pointers",
+  "description": "Test cases for array traversal optimization problems",
+  "test_cases": [
+    {
+      "id": "sliding_window_intro",
+      "problem_type": "Sliding Window Introduction",
+      "student_query": "How do I find the maximum sum of k consecutive elements efficiently?",
+      "student_work": "Drew array, wrote nested loop solution with O(n*k) complexity",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "beginner",
+        "previous_attempts": 1,
+        "struggling_indicators": ["brute force approach", "doesn't see optimization opportunity"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student has correct brute force, needs optimization insight",
+        "hint_level": "Level 1 - Ask about repeated calculations",
+        "pedagogical_approach": "Guide to see the overlapping work in their current solution"
+      },
+      "success_criteria": [
+        "AI recognizes correct but inefficient approach",
+        "AI asks about repeated work without mentioning sliding window",
+        "AI builds on their drawing to show overlap"
+      ]
+    },
+    {
+      "id": "two_pointers_confusion",
+      "problem_type": "Two Pointers Setup",
+      "student_query": "I don't understand when to move which pointer in two sum problem",
+      "student_work": "Attempted two pointers but random pointer movement",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "intermediate",
+        "previous_attempts": 2,
+        "struggling_indicators": ["pointer movement logic", "missing sorted array requirement"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student knows technique but lacks decision logic",
+        "hint_level": "Level 2 - Explain decision criteria for pointer movement",
+        "pedagogical_approach": "Connect pointer movement to search space reduction"
+      },
+      "success_criteria": [
+        "AI explains the logic behind pointer movement",
+        "AI connects to binary search decision-making",
+        "AI emphasizes sorted array requirement"
+      ]
+    },
+    {
+      "id": "sliding_window_variable_size",
+      "problem_type": "Variable Size Window",
+      "student_query": "How do I handle sliding windows when the window size changes?",
+      "student_work": "Fixed-size sliding window code, confused about dynamic sizing",
+      "context": {
+        "has_drawing": false,
+        "skill_level": "intermediate",
+        "previous_attempts": 3,
+        "struggling_indicators": ["fixed window thinking", "condition-based expansion/contraction"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Student ready for variable window concept",
+        "hint_level": "Level 2 - Introduce expand/contract paradigm",
+        "pedagogical_approach": "Build on fixed window understanding"
+      },
+      "success_criteria": [
+        "AI connects to their fixed window knowledge",
+        "AI introduces expand/contract without full code",
+        "AI emphasizes condition checking for window validity"
+      ]
+    },
+    {
+      "id": "subarray_vs_subsequence",
+      "problem_type": "Concept Clarification",
+      "student_query": "What's the difference between subarray and subsequence problems?",
+      "student_work": "Mixed up solutions for both types of problems",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "beginner",
+        "previous_attempts": 1,
+        "struggling_indicators": ["terminology confusion", "technique misapplication"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Conceptual clarification needed before technique discussion",
+        "hint_level": "Concept explanation with clear examples",
+        "pedagogical_approach": "Visual distinction with concrete examples"
+      },
+      "success_criteria": [
+        "AI clearly distinguishes contiguous vs non-contiguous",
+        "AI provides concrete examples of each",
+        "AI explains why different techniques apply"
+      ]
+    },
+    {
+      "id": "optimization_debugging",
+      "problem_type": "Performance Debugging",
+      "student_query": "My sliding window solution is still too slow",
+      "student_work": "Sliding window implementation with hidden inefficiencies",
+      "context": {
+        "has_drawing": true,
+        "skill_level": "advanced",
+        "previous_attempts": 4,
+        "struggling_indicators": ["subtle performance issues", "complexity analysis confusion"]
+      },
+      "expected_ai_behavior": {
+        "interpretation": "Code review and optimization help needed",
+        "hint_level": "Debug flow - analyze implementation efficiency",
+        "pedagogical_approach": "Systematic performance analysis"
+      },
+      "success_criteria": [
+        "AI reviews implementation for hidden inefficiencies",
+        "AI teaches complexity analysis methodology",
+        "AI connects performance to algorithmic choices"
+      ]
+    }
+  ],
+  "pattern_recognition_tests": [
+    {
+      "id": "pattern_identification_1",
+      "scenario": "Student describes problem: 'Find longest substring without repeating characters'",
+      "expected_ai_recognition": "Variable size sliding window pattern",
+      "pedagogical_goal": "Help student recognize when to apply sliding window"
+    },
+    {
+      "id": "pattern_identification_2", 
+      "scenario": "Student asks: 'How to find two numbers that sum to target in sorted array?'",
+      "expected_ai_recognition": "Two pointers pattern on sorted array",
+      "pedagogical_goal": "Connect sorted property to optimization opportunity"
+    }
+  ],
+  "evaluation_metrics": {
+    "pattern_recognition": "Does AI correctly identify the algorithmic pattern needed?",
+    "complexity_awareness": "Does AI help student understand time/space complexity?",
+    "visualization_usage": "Does AI leverage student's drawings effectively?",
+    "technique_generalization": "Does AI help student see broader applications?"
+  },
+  "common_student_mistakes": [
+    "Using nested loops when single pass possible",
+    "Not recognizing when array needs to be sorted first", 
+    "Confusing subarray (contiguous) with subsequence",
+    "Moving both pointers arbitrarily without logic",
+    "Not handling edge cases (empty array, single element)"
+  ]
+}

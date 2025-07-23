@@ -49,9 +49,15 @@ const toolsSlice = createSlice({
         }
       }
       
+      // Adjust settings for eraser
+      let newSettings = { ...state.currentTool.settings };
+      if (action.payload === 'eraser' && newSettings.width < 8) {
+        newSettings.width = 12; // Default smaller eraser size
+      }
+      
       state.currentTool = {
         type: action.payload,
-        settings: { ...state.currentTool.settings },
+        settings: newSettings,
       };
     },
     
@@ -67,8 +73,9 @@ const toolsSlice = createSlice({
     },
     
     setToolWidth: (state, action: PayloadAction<number>) => {
-      // Clamp width between 1 and 20 pixels
-      state.currentTool.settings.width = Math.max(1, Math.min(20, action.payload));
+      // Different limits for different tools
+      const maxWidth = state.currentTool.type === 'eraser' ? 100 : 20;
+      state.currentTool.settings.width = Math.max(1, Math.min(maxWidth, action.payload));
     },
     
     setToolOpacity: (state, action: PayloadAction<number>) => {

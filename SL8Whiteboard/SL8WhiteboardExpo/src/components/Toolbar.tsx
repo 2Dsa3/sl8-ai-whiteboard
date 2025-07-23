@@ -24,7 +24,7 @@ const Toolbar: React.FC = () => {
   };
 
   const handleToolChange = () => {
-    const tools = ['pen', 'pencil', 'highlighter'] as const;
+    const tools = ['pen', 'pencil', 'highlighter', 'eraser'] as const;
     const currentIndex = tools.indexOf(toolsState.currentTool.type as any);
     const nextTool = tools[(currentIndex + 1) % tools.length];
     dispatch(setCurrentTool(nextTool));
@@ -38,7 +38,11 @@ const Toolbar: React.FC = () => {
   };
 
   const handleWidthChange = () => {
-    const widths = [1, 2, 4, 8, 12];
+    // Different sizes for eraser vs drawing tools
+    const widths = toolsState.currentTool.type === 'eraser' 
+      ? [8, 12, 16, 20, 24] // Smaller sizes for eraser
+      : [1, 2, 4, 8, 12];   // Normal sizes for drawing tools
+    
     const currentIndex = widths.indexOf(toolsState.currentTool.settings.width);
     const nextWidth = widths[(currentIndex + 1) % widths.length];
     dispatch(setToolWidth(nextWidth));
@@ -79,16 +83,29 @@ const Toolbar: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tool</Text>
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={handleToolChange}>
-            <Text style={styles.buttonText}>{toolsState.currentTool.type}</Text>
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              toolsState.currentTool.type === 'eraser' && styles.eraserButton
+            ]} 
+            onPress={handleToolChange}
+          >
+            <Text style={[
+              styles.buttonText,
+              toolsState.currentTool.type === 'eraser' && styles.eraserText
+            ]}>
+              {toolsState.currentTool.type === 'eraser' ? '🧽 Eraser' : toolsState.currentTool.type}
+            </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.button, styles.colorButton, { backgroundColor: toolsState.currentTool.settings.color }]} 
-            onPress={handleColorChange}
-          >
-            <Text style={[styles.buttonText, { color: '#fff' }]}>Color</Text>
-          </TouchableOpacity>
+          {toolsState.currentTool.type !== 'eraser' && (
+            <TouchableOpacity 
+              style={[styles.button, styles.colorButton, { backgroundColor: toolsState.currentTool.settings.color }]} 
+              onPress={handleColorChange}
+            >
+              <Text style={[styles.buttonText, { color: '#fff' }]}>Color</Text>
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity style={styles.button} onPress={handleWidthChange}>
             <Text style={styles.buttonText}>{toolsState.currentTool.settings.width}px</Text>
@@ -167,6 +184,12 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     backgroundColor: '#dc3545',
+  },
+  eraserButton: {
+    backgroundColor: '#ffc107',
+  },
+  eraserText: {
+    color: '#000',
   },
   colorButton: {
     borderWidth: 2,

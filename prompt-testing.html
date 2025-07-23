@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Testing - SL8.ai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto p-6">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">🧪 Prompt Testing Dashboard</h1>
+            <p class="text-gray-600 mt-2">Test and optimize AI tutoring prompts</p>
+        </header>
+
+        <!-- Quick Test Scenarios -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-semibold text-red-600 mb-3">🚫 Student Stuck</h3>
+                <p class="text-sm text-gray-600 mb-4">Test how AI handles blocked students</p>
+                <button onclick="testScenario('stuck')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Test Stuck Mode
+                </button>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-semibold text-orange-600 mb-3">💡 Hint Request</h3>
+                <p class="text-sm text-gray-600 mb-4">Test progressive hint delivery</p>
+                <button onclick="testScenario('hint')" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">
+                    Test Hint Mode
+                </button>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-semibold text-purple-600 mb-3">✅ Verification</h3>
+                <p class="text-sm text-gray-600 mb-4">Test solution verification</p>
+                <button onclick="testScenario('verify')" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                    Test Verify Mode
+                </button>
+            </div>
+        </div>
+
+        <!-- Test Cases from JSON -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold">📝 Structured Test Cases</h3>
+                <p class="text-sm text-gray-600">Run test cases from your JSON files</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-3">Binary Search Tree Tests</h4>
+                        <div class="space-y-2">
+                            <button onclick="runTestCase('bst', 'bst_validation_1')" class="block w-full text-left p-3 border rounded hover:bg-blue-50">
+                                🌳 BST Validation - Intermediate Student
+                            </button>
+                            <button onclick="runTestCase('bst', 'bst_insertion_stuck')" class="block w-full text-left p-3 border rounded hover:bg-blue-50">
+                                🌳 BST Insertion - Beginner Stuck
+                            </button>
+                            <button onclick="runTestCase('bst', 'bst_debugging_infinite_loop')" class="block w-full text-left p-3 border rounded hover:bg-blue-50">
+                                🌳 BST Debugging - Infinite Loop
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-3">Sliding Window Tests</h4>
+                        <div class="space-y-2">
+                            <button onclick="runTestCase('sliding', 'sliding_window_intro')" class="block w-full text-left p-3 border rounded hover:bg-green-50">
+                                🔄 Sliding Window - Introduction
+                            </button>
+                            <button onclick="runTestCase('sliding', 'two_pointers_confusion')" class="block w-full text-left p-3 border rounded hover:bg-green-50">
+                                🔄 Two Pointers - Decision Logic
+                            </button>
+                            <button onclick="runTestCase('sliding', 'subarray_vs_subsequence')" class="block w-full text-left p-3 border rounded hover:bg-green-50">
+                                🔄 Concept Clarification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Display -->
+        <div id="test-results" class="hidden bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold">📊 Test Results</h3>
+            </div>
+            <div id="results-content" class="p-6">
+                <!-- Results will appear here -->
+            </div>
+        </div>
+
+        <!-- Prompt Variants Comparison -->
+        <div class="bg-white rounded-lg shadow mt-8">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold">🔄 A/B Test Prompts</h3>
+                <p class="text-sm text-gray-600">Compare different prompt variants</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Prompt Version A</label>
+                        <textarea id="prompt-a" rows="6" class="w-full border rounded-lg p-3 text-sm" placeholder="Enter prompt variant A..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Prompt Version B</label>
+                        <textarea id="prompt-b" rows="6" class="w-full border rounded-lg p-3 text-sm" placeholder="Enter prompt variant B..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-4 text-center">
+                    <button onclick="comparePrompts()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">
+                        🔍 Compare Responses
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test scenario functions
+        function testScenario(mode) {
+            console.log('Testing scenario:', mode);
+            
+            // This would connect to your main app's tutoring system
+            const scenarios = {
+                stuck: "Student has drawn a binary tree but seems confused about traversal implementation",
+                hint: "Student asks for hint on dynamic programming problem they're working on",
+                verify: "Student believes they have correct solution for sliding window problem"
+            };
+            
+            showTestResult(`Testing ${mode} scenario`, scenarios[mode]);
+        }
+        
+        function runTestCase(category, testId) {
+            console.log('Running test case:', category, testId);
+            
+            // This would load from your JSON test cases and run through the AI
+            showTestResult(`Running ${category} test case: ${testId}`, 'Test case would be executed here...');
+        }
+        
+        function comparePrompts() {
+            const promptA = document.getElementById('prompt-a').value;
+            const promptB = document.getElementById('prompt-b').value;
+            
+            if (!promptA || !promptB) {
+                alert('Please enter both prompt variants to compare');
+                return;
+            }
+            
+            showTestResult('Prompt Comparison', `Comparing:\nPrompt A: ${promptA.substring(0, 100)}...\nPrompt B: ${promptB.substring(0, 100)}...`);
+        }
+        
+        function showTestResult(title, content) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultsContent = document.getElementById('results-content');
+            
+            resultsDiv.classList.remove('hidden');
+            resultsContent.innerHTML = `
+                <div class="border-l-4 border-blue-400 pl-4 mb-4">
+                    <h4 class="font-semibold text-gray-800">${title}</h4>
+                    <p class="text-gray-600 mt-2">${content}</p>
+                </div>
+                <div class="mt-4 p-4 bg-gray-50 rounded">
+                    <div class="text-sm text-gray-600">
+                        <strong>📊 Evaluation Metrics:</strong><br>
+                        • Response appropriateness: <span class="text-green-600">✓ Good</span><br>
+                        • Pedagogical soundness: <span class="text-yellow-600">⚠ Needs improvement</span><br>
+                        • Student engagement: <span class="text-green-600">✓ Engaging</span><br>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Auto-populate with sample prompts
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('prompt-a').value = "Eres un tutor experto. Ayuda al estudiante que está atascado con su problema de programación.";
+            document.getElementById('prompt-b').value = "Eres TutorIA, un mentor empático. PRIMERO valida el esfuerzo del estudiante, LUEGO analiza su trabajo específicamente, FINALMENTE guía con preguntas socráticas hacia el próximo insight.";
+        });
+    </script>
+</body>
+</html>

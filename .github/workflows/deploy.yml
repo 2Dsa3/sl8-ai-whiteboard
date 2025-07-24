@@ -20,5 +20,5 @@ jobs:
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./SL8-AI\ \(MVP\)
+        publish_dir: './SL8-AI (MVP)'
         force_orphan: true

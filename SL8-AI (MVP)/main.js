@@ -61,6 +61,14 @@ class TutorIA {
             successfulInteractions: [] // track what works for this user
         };
 
+        // Exercise validation and blocking system
+        this.isContentBlocked = true;  // Start with content blocked
+        this.exerciseText = '';
+        this.exerciseImage = null;
+
+        // Initialize the whiteboard but keep it blocked initially
+        this.whiteboard = null;
+
         // Optimized Tutoring Prompts - Based on pedagogical research
         this.tutorPrompts = {
             initial: `Eres TutorIA, un tutor de programación experto y empático especializado en pensamiento algorítmico.
@@ -296,11 +304,15 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
     // Event binding
     bindEvents() {
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize content blocking first
+            this.initializeContentBlocking();
+            
             // Initialize Whiteboard first
             console.log('🚀 Initializing Whiteboard...');
-            window.whiteboard = new Whiteboard('whiteboard', 'eraser-cursor');
+            this.whiteboard = new Whiteboard('whiteboard', 'eraser-cursor');
+            window.whiteboard = this.whiteboard;
 
-            if (!window.whiteboard || !window.whiteboard.canvas) {
+            if (!this.whiteboard || !this.whiteboard.canvas) {
                 console.error('❌ Failed to initialize Whiteboard!');
                 return;
             }
@@ -311,6 +323,9 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             setTimeout(() => {
                 this.selectPenTool();
             }, 100);
+            
+            // Exercise input validation
+            this.setupExerciseValidation();
             // Help buttons
             const helpToggle = document.getElementById('help-toggle');
             if (helpToggle) {
@@ -449,6 +464,12 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
     // Main help function
     async getHelp(helpType) {
         try {
+            // Check if content is blocked
+            if (this.isContentBlocked) {
+                this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de solicitar ayuda. 📝');
+                return;
+            }
+
             if (!this.hasTokensAvailable()) {
                 this.showError('Has agotado tus consultas diarias. Regresa mañana para más ayuda del tutor IA. 🪙');
                 return;
@@ -671,6 +692,12 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
         }
     }
     async sendQuery() {
+        // Check if content is blocked
+        if (this.isContentBlocked) {
+            this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de hacer preguntas. 📝');
+            return;
+        }
+
         const queryInput = document.getElementById('query-input');
         const query = queryInput?.value?.trim();
 
@@ -1272,6 +1299,109 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             return this.exerciseImageData.replace(/^data:image\/[a-z]+;base64,/, '');
         }
         return null;
+    }
+
+    // Content blocking system methods
+    initializeContentBlocking() {
+        console.log('🔒 Initializing content blocking system');
+        this.updateContentBlockState();
+    }
+
+    setupExerciseValidation() {
+        // Monitor text input
+        const exerciseInput = document.getElementById('exercise-input');
+        if (exerciseInput) {
+            exerciseInput.addEventListener('input', () => {
+                this.exerciseText = exerciseInput.value.trim();
+                this.validateAndUpdateBlocking();
+            });
+        }
+
+        // Monitor image uploads/paste
+        const exerciseImageContainer = document.getElementById('exercise-image-container');
+        if (exerciseImageContainer) {
+            const observer = new MutationObserver(() => {
+                const hasImage = !exerciseImageContainer.classList.contains('hidden');
+                this.exerciseImage = hasImage;
+                this.validateAndUpdateBlocking();
+            });
+            observer.observe(exerciseImageContainer, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // Monitor clear exercise button
+        const clearExercise = document.getElementById('clear-exercise');
+        if (clearExercise) {
+            clearExercise.addEventListener('click', () => {
+                setTimeout(() => {
+                    this.exerciseText = '';
+                    this.exerciseImage = null;
+                    this.validateAndUpdateBlocking();
+                }, 100);
+            });
+        }
+    }
+
+    validateAndUpdateBlocking() {
+        const hasExerciseText = this.exerciseText.length > 0;
+        const hasExerciseImage = this.exerciseImage;
+        
+        // Content is blocked if there's no exercise text AND no exercise image
+        this.isContentBlocked = !hasExerciseText && !hasExerciseImage;
+        
+        console.log('📝 Exercise validation:', {
+            hasText: hasExerciseText,
+            hasImage: hasExerciseImage,
+            isBlocked: this.isContentBlocked
+        });
+
+        this.updateContentBlockState();
+    }
+
+    updateContentBlockState() {
+        // Update canvas blocking
+        const canvasMain = document.getElementById('canvas-main');
+        const canvasBlockOverlay = document.getElementById('canvas-block-overlay');
+        
+        if (canvasMain && canvasBlockOverlay) {
+            if (this.isContentBlocked) {
+                canvasMain.classList.add('canvas-blocked');
+                canvasBlockOverlay.classList.add('active');
+            } else {
+                canvasMain.classList.remove('canvas-blocked');
+                canvasBlockOverlay.classList.remove('active');
+            }
+        }
+
+        // Update controls blocking
+        const canvasControls = document.getElementById('canvas-controls');
+        if (canvasControls) {
+            if (this.isContentBlocked) {
+                canvasControls.classList.add('controls-blocked');
+            } else {
+                canvasControls.classList.remove('controls-blocked');
+            }
+        }
+
+        // Update help blocking
+        const helpSection = document.getElementById('help-section');
+        if (helpSection) {
+            if (this.isContentBlocked) {
+                helpSection.classList.add('help-blocked');
+            } else {
+                helpSection.classList.remove('help-blocked');
+            }
+        }
+
+        // Disable whiteboard if blocked
+        if (this.whiteboard) {
+            if (this.isContentBlocked) {
+                this.whiteboard.canvas.style.pointerEvents = 'none';
+            } else {
+                this.whiteboard.canvas.style.pointerEvents = 'auto';
+            }
+        }
+
+        console.log('🔄 Content block state updated:', this.isContentBlocked ? 'BLOCKED' : 'UNBLOCKED');
     }
 }
 

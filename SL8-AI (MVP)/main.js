@@ -1,13 +1,26 @@
 // Main application logic for TutorIA - Clean version without duplications
 
 import { Whiteboard } from './draw.js';
+// Temporarily commented out analytics imports to fix basic functionality
+// import { PromptAnalytics } from '../analytics.js';
+// import { PromptExperiments } from '../experiments.js';
+// import { GoldenDataset } from '../golden-dataset.js';
+// import { FeedbackCollector } from '../feedback-collector.js';
 
 class TutorIA {
     constructor() {
         // API Configuration
-        this.apiKey = import.meta.env?.VITE_GEMINI_API_KEY || 'your-apiKey-here';
+        this.apiKey = 'AIzaSyAojAxx9lFUfzjeZXXETjGG_dlzpn-ktPk';
+
+        console.log(this.apiKey)
 
         this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+        // Prompt optimization infrastructure - temporarily commented out
+        // this.analytics = new PromptAnalytics();
+        // this.experiments = new PromptExperiments();
+        // this.goldenDataset = new GoldenDataset();
+        // this.feedbackCollector = new FeedbackCollector(this);
 
         // Token management
         this.maxTokens = 30;
@@ -20,60 +33,206 @@ class TutorIA {
         this.conversationHistory = [];
         this.responseHistory = [];
 
-        // Tutoring prompts
-        this.tutorPrompts = {
-            initial: `Eres un tutor experto y amigable. Analiza cuidadosamente la imagen de la pizarra del estudiante. Tu trabajo es:
-1. INTERPRETAR: Examina cada trazo, símbolo, número o texto en la pizarra. Si no puedes entender algo con 95% de certeza, pide aclaración específica.
-2. CUANDO ESTÉS 95% SEGURO del contenido:
-   - Da retroalimentación positiva sobre lo que el estudiante ha hecho correctamente
-   - Señala qué podría mejorarse o qué casos no está considerando
-   - Proporciona insights valiosos sin dar la solución completa
-3. IMPORTANTE: Si no entiendes claramente lo que está escrito, responde: "No puedo leer claramente [parte específica]. ¿Podrías escribirlo de forma más legible o describir lo que intentas resolver?"
-Responde en español de manera constructiva y alentadora.`,
-
-            stuck: `El estudiante dice estar atascado. Como tutor experto:
-1. Ayúdale a considerar más casos y entender mejor la lógica del problema
-2. Haz preguntas que lo guíen a descubrir qué está pasando por alto
-3. No des la solución, sino herramientas para pensar diferente
-4. Analiza lo que ha dibujado y construye sobre eso
-Responde en español de manera que despierte su curiosidad por explorar más.`,
-
-            hint: `El estudiante pide una pista. Como tutor experto:
-1. PRIMERO: Examina cuidadosamente la imagen de la pizarra que te estoy enviando. Describe brevemente lo que ves dibujado.
-2. SEGUNDO: Analiza lo que ya ha descubierto en la pizarra basándote en lo que observas
-3. TERCERO: Da una pista que lo ayude a avanzar SOLO en lo que NO ha resuelto aún
-4. NO repitas lo que ya sabe o ha hecho
-5. La pista debe ser suficiente para el siguiente paso, no más
-Responde en español con una pista específica y útil. IMPORTANTE: Siempre menciona lo que ves en la pizarra para confirmar que puedes ver la imagen.`,
-
-            clarify: `El estudiante quiere que clarifies el problema. Como tutor experto:
-1. Proporciona más ejemplos de entrada y salida
-2. Explica mejor las condiciones del problema
-3. NO des pistas sobre la solución, solo clarifica el enunciado
-4. Ayuda a entender qué se está pidiendo exactamente
-Responde en español enfocándote solo en aclarar el problema.`,
-
-            next_step: `El estudiante pide una sugerencia del siguiente paso. Como tutor experto:
-1. Analiza dónde está actualmente en su solución
-2. Sugiere el próximo paso lógico sin ser obvio
-3. NO des la fórmula exacta o la solución directa
-4. Guíalo hacia el siguiente razonamiento que necesita hacer
-Responde en español con una sugerencia sutil pero útil.`,
-
-            verify: `El estudiante cree tener la solución. Como tutor experto:
-1. Analiza su propuesta cuidadosamente
-2. Si es correcta: Felicítalo y explica por qué está bien
-3. Si es incorrecta: Proporciona un contraejemplo específico que muestre el error
-4. Sé constructivo y mantén su motivación alta
-Responde en español con evaluación honesta y constructiva.`,
-
-            solution: `El estudiante pide la solución completa. Como tutor experto:
-1. Primero, aliéntalo reconociendo su esfuerzo y progreso
-2. Presenta la solución completa paso a paso
-3. Contrasta: qué hizo bien, qué hizo mal, qué no consideró
-4. Termina con: "El patrón clave para resolver este tipo de problemas era..."
-Responde en español de manera comprensiva y educativa.`
+        // Prompt optimization system
+        this.promptVariants = {
+            temperature: {
+                stuck: 0.8,     // High creativity for unblocking
+                hint: 0.6,      // Moderate creativity for hints
+                clarify: 0.4,   // Low creativity for clarity
+                next_step: 0.7, // Moderate-high for guidance
+                verify: 0.3,    // Low creativity for analysis
+                solution: 0.5   // Balanced for comprehensive explanation
+            },
+            maxOutputTokens: {
+                stuck: 800,     // Longer for emotional support and exploration
+                hint: 400,      // Shorter for focused hints
+                clarify: 600,   // Medium for clear explanations
+                next_step: 500, // Medium for specific guidance
+                verify: 700,    // Longer for thorough analysis
+                solution: 1200  // Longest for complete explanations
+            }
         };
+
+        // User interaction patterns for prompt adaptation
+        this.userProfile = {
+            skillLevel: 'unknown', // beginner, intermediate, advanced
+            preferredStyle: 'unknown', // direct, socratic, encouraging
+            strugglingAreas: [], // track recurring difficulty patterns
+            successfulInteractions: [] // track what works for this user
+        };
+
+        // Exercise validation and blocking system
+        this.isContentBlocked = true;  // Start with content blocked
+        this.exerciseText = '';
+        this.exerciseImage = null;
+
+        // Initialize the whiteboard but keep it blocked initially
+        this.whiteboard = null;
+
+        // Optimized Tutoring Prompts - Based on pedagogical research
+        this.tutorPrompts = {
+            initial: `Eres TutorIA, un tutor de programación experto y empático especializado en pensamiento algorítmico.
+
+ANÁLISIS VISUAL REQUERIDO:
+- Examina meticulosamente cada elemento en la pizarra: código, diagramas, texto, números
+- Si la imagen no está clara al 95%, pregunta específicamente qué no puedes leer
+- Identifica el nivel de progreso del estudiante basándote en lo que ves
+
+MARCO PEDAGÓGICO:
+1. RECONOCIMIENTO: Siempre comienza destacando qué está haciendo bien
+2. DIAGNÓSTICO: Identifica el tipo de ayuda necesaria (conceptual, implementación, debugging)
+3. RESPUESTA ADAPTADA: Proporciona el nivel exacto de orientación necesaria
+
+PRINCIPIOS CLAVE:
+- Usa el método socrático: pregunta antes de explicar
+- Conecta con conocimiento previo visible en su trabajo
+- Promueve descubrimiento independiente, no dependencia
+- Mantén alta la confianza mientras corriges errores
+
+Responde en español con curiosidad genuina sobre su pensamiento.`,
+
+            stuck: `ESTADO IDENTIFICADO: Estudiante bloqueado necesita desbloquearse.
+
+ESTRATEGIA DE DESBLOQUEO:
+1. VALIDACIÓN EMOCIONAL: "Veo que has trabajado duro en esto..."
+2. ANÁLISIS VISUAL: Describe específicamente qué observas en su trabajo
+3. REFRAME DEL PROBLEMA: Ayúdalo a ver el problema desde otro ángulo
+4. PREGUNTAS GUÍA: Haz 2-3 preguntas que despierten nuevas conexiones
+
+TÉCNICAS ESPECÍFICAS:
+- "¿Qué pasaría si...?" (escenarios hipotéticos)
+- "¿Has visto algo similar antes en...?" (conexión con experiencias previas)
+- "¿Qué parte te resulta más familiar?" (ancla en fortalezas)
+
+EVITA: Dar pasos directos, resolver por él, mostrar frustración
+BUSCA: Que tenga un "¡Ah!" momento de comprensión
+
+Responde con energía positiva y curiosidad investigativa.`,
+
+            hint: `MODO: Pista Progresiva Calibrada
+
+PROTOCOLO DE PISTA:
+1. CONFIRMACIÓN VISUAL: "Veo que has [descripción específica de su trabajo]..."
+2. EVALUACIÓN: Identifica exactamente dónde está en su proceso de resolución
+3. PISTA MÍNIMA VIABLE: Da LA MENOR cantidad de información que lo ayude a avanzar UN paso
+4. VERIFICACIÓN: Pregunta si la pista tiene sentido antes de continuar
+
+NIVELES DE PISTA (usar el mínimo necesario):
+- Nivel 1: Pregunta reflexiva que lo guíe al insight
+- Nivel 2: Señala hacia el área correcta sin dar la respuesta
+- Nivel 3: Da una analogía o ejemplo paralelo
+- Nivel 4: Estructura de alto nivel (solo si está muy perdido)
+
+REGLAS ESTRICTAS:
+- NO reveles la implementación directa
+- NO des múltiples pistas a la vez
+- SÍ confirma cuando está en el camino correcto
+- SÍ pregunta qué piensa sobre la pista dada
+
+Responde con una sola pista elegante y potente.`,
+
+            clarify: `MODO: Clarificación de Problema (Sin Spoilers)
+
+OBJETIVO: Aclarar QUÉ resolver, no CÓMO resolverlo.
+
+ESTRUCTURA DE CLARIFICACIÓN:
+1. CONTEXTO: Reformula el problema en palabras más simples
+2. EJEMPLOS CONCRETOS: Da 2-3 casos de entrada/salida diferentes
+3. RESTRICCIONES: Clarifica límites y casos especiales
+4. EXPECTATIVAS: Explica qué tipo de solución se busca
+
+TÉCNICAS PEDAGÓGICAS:
+- Usa analogías del mundo real cuando sea útil
+- Descompón problemas complejos en partes más simples
+- Identifica conceptos clave que necesita entender primero
+- Da ejemplos que cubran casos normales y extremos
+
+LÍMITES ESTRICTOS:
+- NO menciones algoritmos específicos
+- NO des pistas sobre la implementación
+- NO sugieras estructuras de datos específicas
+- SÍ asegúrate que comprende completamente el problema
+
+Responde enfocándote exclusivamente en la comprensión del enunciado.`,
+
+            next_step: `MODO: Orientación de Siguiente Paso
+
+ANÁLISIS REQUERIDO:
+1. ESTADO ACTUAL: Evalúa precisamente dónde está en su solución
+2. SIGUIENTE LÓGICO: Identifica el próximo paso más natural
+3. DOSIFICACIÓN: Da orientación suficiente para UN paso, no más
+
+ESTRATEGIA DE ORIENTACIÓN:
+- Pregunta qué piensa que debería hacer después
+- Si está correcto: confirma y da confianza para proceder
+- Si está perdido: sugiere la dirección general sin especificar cómo
+- Si está equivocado: redirige suavemente con una pregunta
+
+FORMULACIONES EFECTIVAS:
+- "Ahora que tienes X, ¿qué necesitas para Y?"
+- "¿Qué información te falta para continuar?"
+- "¿Has considerado qué pasa cuando...?"
+
+MANTÉN AUTONOMÍA: El objetivo es que él tome las decisiones, tú solo orientas la dirección.
+
+Responde con orientación específica pero no prescriptiva.`,
+
+            verify: `MODO: Evaluación Constructiva de Solución
+
+PROTOCOLO DE VERIFICACIÓN:
+1. ANÁLISIS COMPLETO: Examina toda la lógica propuesta paso a paso
+2. TESTING MENTAL: Prueba con casos normales y extremos
+3. FEEDBACK BALANCEADO: Destaca aciertos antes de señalar errores
+
+ESTRUCTURA DE RESPUESTA:
+- RECONOCIMIENTO: "Has aplicado bien el concepto de..."
+- EVALUACIÓN: "Tu solución funciona para casos como..."
+- IDENTIFICACIÓN DE GAPS: "Considera qué pasaría si..."
+- ORIENTACIÓN: "¿Cómo podrías manejar el caso donde...?"
+
+SI ES CORRECTA:
+- Celebra específicamente qué hizo bien
+- Explica por qué su enfoque es sólido
+- Menciona posibles optimizaciones (si aplica)
+- Conecta con patrones algorítmicos generales
+
+SI ES INCORRECTA:
+- Da un contraejemplo concreto que demuestre el error
+- Pregunta qué piensa sobre ese caso específico
+- Guía hacia la corrección sin dar la respuesta directa
+
+Responde con honestidad constructiva que mantenga alta la motivación.`,
+
+            solution: `MODO: Solución Educativa Completa
+
+ENFOQUE PEDAGÓGICO INTEGRAL:
+1. RECONOCIMIENTO DEL ESFUERZO: Valida todo el trabajo realizado
+2. SOLUCIÓN ESTRUCTURADA: Presenta paso a paso con razonamiento claro
+3. ANÁLISIS COMPARATIVO: Contrasta su enfoque vs. solución óptima
+4. GENERALIZACIÓN: Extrae patrones aplicables a problemas similares
+
+ESTRUCTURA DE PRESENTACIÓN:
+- INSIGHT CLAVE: "El breakthrough necesario era reconocer que..."
+- SOLUCIÓN PASO A PASO: Con explicación del porqué en cada paso
+- ANÁLISIS DE SU TRABAJO: "Tu enfoque de X fue correcto porque..."
+- LECCIONES EXTRAÍBLES: "Este patrón aparece también en..."
+
+ELEMENTOS DIDÁCTICOS:
+- Conecta con conceptos que ya domina
+- Explica por qué otras aproximaciones no funcionan
+- Menciona cuándo usar vs. no usar esta técnica
+- Sugiere problemas similares para practicar
+
+CIERRE MOTIVACIONAL:
+- Resalta el progreso en su pensamiento algorítmico
+- Identifica fortalezas específicas demostradas
+- Sugiere próximos desafíos apropiados para su nivel
+
+Responde como un mentor experto que celebra el crecimiento intelectual.`
+        };
+
+        // Load user profile from previous sessions
+        this.loadUserProfile();
 
         this.bindEvents();
     }
@@ -145,11 +304,15 @@ Responde en español de manera comprensiva y educativa.`
     // Event binding
     bindEvents() {
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize content blocking first
+            this.initializeContentBlocking();
+            
             // Initialize Whiteboard first
             console.log('🚀 Initializing Whiteboard...');
-            window.whiteboard = new Whiteboard('whiteboard', 'eraser-cursor');
+            this.whiteboard = new Whiteboard('whiteboard', 'eraser-cursor');
+            window.whiteboard = this.whiteboard;
 
-            if (!window.whiteboard || !window.whiteboard.canvas) {
+            if (!this.whiteboard || !this.whiteboard.canvas) {
                 console.error('❌ Failed to initialize Whiteboard!');
                 return;
             }
@@ -160,6 +323,9 @@ Responde en español de manera comprensiva y educativa.`
             setTimeout(() => {
                 this.selectPenTool();
             }, 100);
+            
+            // Exercise input validation
+            this.setupExerciseValidation();
             // Help buttons
             const helpToggle = document.getElementById('help-toggle');
             if (helpToggle) {
@@ -298,6 +464,12 @@ Responde en español de manera comprensiva y educativa.`
     // Main help function
     async getHelp(helpType) {
         try {
+            // Check if content is blocked
+            if (this.isContentBlocked) {
+                this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de solicitar ayuda. 📝');
+                return;
+            }
+
             if (!this.hasTokensAvailable()) {
                 this.showError('Has agotado tus consultas diarias. Regresa mañana para más ayuda del tutor IA. 🪙');
                 return;
@@ -342,17 +514,38 @@ Responde en español de manera comprensiva y educativa.`
             }
 
             // Siempre capturar la imagen para debug
-            const imageData = window.whiteboard ? window.whiteboard.getCanvasImageData() : null;
-            console.log('🔍 Debug - Image data captured:', !!imageData);
-            console.log('🔍 Debug - Image data length:', imageData ? imageData.length : 0);
+            let imageData = null;
+            try {
+                imageData = window.whiteboard ? window.whiteboard.getCanvasImageData() : null;
+                console.log('🔍 Debug - Image data captured:', !!imageData);
+                console.log('🔍 Debug - Image data length:', imageData ? imageData.length : 0);
+            } catch (error) {
+                console.warn('⚠️ Error capturing image data:', error);
+                imageData = null;
+            }
+            
             const exerciseText = document.getElementById('exercise-input')?.value || '';
 
-            let contextualPrompt = this.tutorPrompts[mode];
+            // PROMPT OPTIMIZATION - Track interaction start (temporarily disabled)
+            // const startTime = Date.now();
+            // const interactionContext = {
+            //     mode: mode,
+            //     hasDrawing: !!(window.whiteboard && !window.whiteboard.isEmpty()),
+            //     exercisePresent: !!exerciseText.trim(),
+            //     conversationLength: this.conversationHistory.length,
+            //     attemptNumber: this.conversationHistory.filter(h => h.includes(`Modo: ${mode}`)).length + 1
+            // };
+
+            // Get optimized prompt with user context
+            let contextualPrompt = this.getOptimizedPrompt(mode, exerciseText);
+
             if (this.conversationHistory.length > 0) {
-                contextualPrompt += `\n\nHistorial: ${this.conversationHistory.slice(-3).join('\n')}`;
+                contextualPrompt += `\n\nCONTEXTO DE CONVERSACIÓN: Has tenido ${this.conversationHistory.length} interacciones previas. Historial reciente: ${this.conversationHistory.slice(-2).join('\n')}`;
             }
-            if (exerciseText.trim()) {
-                contextualPrompt += `\n\nContexto del ejercicio: ${exerciseText}`;
+            
+            // Add user profiling context
+            if (this.userProfile.skillLevel !== 'unknown') {
+                contextualPrompt += `\n\nPERFIL DEL ESTUDIANTE: Nivel estimado: ${this.userProfile.skillLevel}. Estilo preferido: ${this.userProfile.preferredStyle}.`;
             }
 
             const requestParts = [{ text: contextualPrompt }];
@@ -361,18 +554,34 @@ Responde en español de manera comprensiva y educativa.`
             console.log('🔍 Debug - Mode:', mode);
             console.log('🔍 Debug - Should send image:', ['stuck', 'hint', 'next_step', 'verify'].includes(mode));
             console.log('🔍 Debug - Has imageData:', !!imageData);
+            console.log('🔍 Debug - Canvas isEmpty:', window.whiteboard ? window.whiteboard.isEmpty() : 'No whiteboard');
 
-            if (imageData && ['stuck', 'hint', 'next_step', 'verify'].includes(mode)) {
-                requestParts.push({
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: imageData
-                    }
-                });
-                console.log('🔍 Debug - Image added to request!');
-                console.log('🔍 Debug - Image data sample:', imageData.substring(0, 50) + '...');
+            // Only include image if we have valid data and canvas is not empty
+            const shouldIncludeImage = imageData && 
+                                     imageData.length > 0 && 
+                                     window.whiteboard && 
+                                     !window.whiteboard.isEmpty() &&
+                                     ['stuck', 'hint', 'next_step', 'verify'].includes(mode);
+
+            if (shouldIncludeImage) {
+                try {
+                    requestParts.push({
+                        inline_data: {
+                            mime_type: "image/jpeg",
+                            data: imageData
+                        }
+                    });
+                    console.log('🔍 Debug - Image added to request!');
+                    console.log('🔍 Debug - Image data sample:', imageData.substring(0, 50) + '...');
+                } catch (error) {
+                    console.warn('⚠️ Error adding image to request:', error);
+                }
             } else {
                 console.log('🔍 Debug - Image NOT added to request');
+                // Modify prompt to work without image for modes that typically need it
+                if (['stuck', 'hint', 'next_step', 'verify'].includes(mode)) {
+                    requestParts[0].text += "\n\nNOTA: El estudiante no ha dibujado nada aún en la pizarra. Proporciona orientación general sobre cómo abordar este tipo de problemas y cómo empezar a trabajar en la pizarra.";
+                }
             }
 
             const exerciseImageData = this.getExerciseImageData();
@@ -382,15 +591,17 @@ Responde en español de manera comprensiva y educativa.`
                 });
             }
 
-            if (mode === 'clarify' && (!imageData || window.whiteboard.isEmpty())) {
+            if (mode === 'clarify' && (!imageData || !window.whiteboard || window.whiteboard.isEmpty())) {
                 requestParts[0].text += "\n\nProporciona ejemplos y explicaciones sobre tipos de problemas comunes.";
             }
 
             const requestBody = {
                 contents: [{ parts: requestParts }],
                 generationConfig: {
-                    temperature: mode === 'solution' ? 0.3 : 0.7,
-                    topK: 40, topP: 0.95, maxOutputTokens: 1024
+                    temperature: this.promptVariants.temperature[mode] || 0.7,
+                    topK: 40, 
+                    topP: 0.95, 
+                    maxOutputTokens: this.promptVariants.maxOutputTokens[mode] || 1024
                 }
             };
 
@@ -439,6 +650,32 @@ Responde en español de manera comprensiva y educativa.`
 
                 this.showResponse(aiText, typeLabels[mode] || 'Ayuda');
                 this.addToHistory(`Ayuda: ${typeLabels[mode]}`, aiText);
+                
+                // Add simple feedback buttons for prompt optimization
+                this.addFeedbackButtons(mode);
+
+                // PROMPT OPTIMIZATION - Track successful interaction (temporarily disabled)
+                // const responseTime = Date.now() - startTime;
+                // const interactionId = this.analytics.trackInteraction({
+                //     type: mode,
+                //     userQuery: `${typeLabels[mode]} request`,
+                //     aiResponse: aiText,
+                //     responseTime: responseTime,
+                //     userAction: 'response_shown',
+                //     hasDrawing: interactionContext.hasDrawing,
+                //     drawingComplexity: imageData ? (imageData.length > 1000 ? 'complex' : 'simple') : 'none'
+                // });
+
+                // Show feedback form
+                // setTimeout(() => {
+                //     this.feedbackCollector.showFeedbackForm(interactionId);
+                // }, 2000);
+
+                // Track for experiments
+                // this.experiments.trackResult(
+                //     { mode, prompt: contextualPrompt, context: interactionContext },
+                //     'success' // We'll update this later based on user feedback
+                // );
 
                 const remaining = this.getRemainingTokens();
                 if (remaining <= 5 && remaining > 0) {
@@ -455,6 +692,12 @@ Responde en español de manera comprensiva y educativa.`
         }
     }
     async sendQuery() {
+        // Check if content is blocked
+        if (this.isContentBlocked) {
+            this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de hacer preguntas. 📝');
+            return;
+        }
+
         const queryInput = document.getElementById('query-input');
         const query = queryInput?.value?.trim();
 
@@ -517,6 +760,115 @@ Responde en español de manera comprensiva y educativa.`
         } finally {
             this.showLoading(false);
         }
+    }
+    
+    // Prompt optimization methods
+    getOptimizedPrompt(mode, exerciseText) {
+        let basePrompt = this.tutorPrompts[mode];
+        
+        // Add exercise context if provided
+        if (exerciseText.trim()) {
+            basePrompt += `\n\nCONTEXTO DEL EJERCICIO PROPORCIONADO: "${exerciseText}"`;
+        }
+        
+        // Adapt prompt based on user skill level
+        if (this.userProfile.skillLevel === 'beginner') {
+            basePrompt += `\n\nADAPTACIÓN: Este estudiante es principiante. Usa vocabulario simple, explica conceptos básicos y sé extra paciente.`;
+        } else if (this.userProfile.skillLevel === 'advanced') {
+            basePrompt += `\n\nADAPTACIÓN: Este estudiante es avanzado. Puedes usar terminología técnica y referir conceptos más sofisticados.`;
+        }
+        
+        // Adapt based on preferred style
+        if (this.userProfile.preferredStyle === 'direct') {
+            basePrompt += `\n\nESTILO PREFERIDO: Este estudiante prefiere respuestas directas y concisas.`;
+        } else if (this.userProfile.preferredStyle === 'socratic') {
+            basePrompt += `\n\nESTILO PREFERIDO: Este estudiante responde bien a preguntas guía y descubrimiento dirigido.`;
+        }
+        
+        return basePrompt;
+    }
+    
+    updateUserProfile(mode, wasHelpful) {
+        // Simple skill level assessment based on interaction patterns
+        if (mode === 'solution' && this.conversationHistory.length < 3) {
+            this.userProfile.skillLevel = 'beginner';
+        } else if (mode === 'verify' && wasHelpful) {
+            this.userProfile.skillLevel = 'intermediate';
+        } else if (mode === 'next_step' && this.conversationHistory.length > 5) {
+            this.userProfile.skillLevel = 'advanced';
+        }
+        
+        // Track successful interaction patterns
+        if (wasHelpful) {
+            this.userProfile.successfulInteractions.push({
+                mode: mode,
+                timestamp: Date.now(),
+                context: this.conversationHistory.length
+            });
+        }
+        
+        // Save profile to localStorage for persistence
+        localStorage.setItem('tutorIA_userProfile', JSON.stringify(this.userProfile));
+    }
+    
+    loadUserProfile() {
+        const stored = localStorage.getItem('tutorIA_userProfile');
+        if (stored) {
+            try {
+                this.userProfile = { ...this.userProfile, ...JSON.parse(stored) };
+            } catch (e) {
+                console.warn('Could not load user profile:', e);
+            }
+        }
+    }
+    
+    addFeedbackButtons(mode) {
+        const aiResponse = document.getElementById('ai-response');
+        if (aiResponse) {
+            const feedbackHtml = `
+                <div class="feedback-container mt-2 p-2 bg-gray-50 rounded border text-center">
+                    <div class="text-xs text-gray-600 mb-2">¿Te ayudó esta respuesta?</div>
+                    <div class="flex justify-center space-x-2">
+                        <button class="feedback-btn bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs" 
+                                onclick="window.tutorIA.recordFeedback('${mode}', true)">
+                            👍 Útil
+                        </button>
+                        <button class="feedback-btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs" 
+                                onclick="window.tutorIA.recordFeedback('${mode}', false)">
+                            👎 Confuso
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Add feedback to the last response
+            const responses = aiResponse.querySelectorAll('.mb-3');
+            if (responses.length > 0) {
+                const lastResponse = responses[responses.length - 1];
+                lastResponse.insertAdjacentHTML('beforeend', feedbackHtml);
+            }
+        }
+    }
+    
+    recordFeedback(mode, wasHelpful) {
+        // Update user profile based on feedback
+        this.updateUserProfile(mode, wasHelpful);
+        
+        // Hide feedback buttons after selection
+        const feedbackContainers = document.querySelectorAll('.feedback-container');
+        feedbackContainers.forEach(container => {
+            const selectedButton = container.querySelector('.feedback-btn');
+            if (selectedButton) {
+                container.innerHTML = `
+                    <div class="text-xs text-gray-500">
+                        ${wasHelpful ? '✅ Gracias por el feedback positivo' : '📝 Tomaré nota para mejorar'}
+                    </div>
+                `;
+            }
+        });
+        
+        // Log for development
+        console.log('📊 Feedback recorded:', { mode, wasHelpful, userProfile: this.userProfile });
     }
     // Action functions
     clearAll() {
@@ -947,6 +1299,109 @@ Responde en español de manera comprensiva y educativa.`
             return this.exerciseImageData.replace(/^data:image\/[a-z]+;base64,/, '');
         }
         return null;
+    }
+
+    // Content blocking system methods
+    initializeContentBlocking() {
+        console.log('🔒 Initializing content blocking system');
+        this.updateContentBlockState();
+    }
+
+    setupExerciseValidation() {
+        // Monitor text input
+        const exerciseInput = document.getElementById('exercise-input');
+        if (exerciseInput) {
+            exerciseInput.addEventListener('input', () => {
+                this.exerciseText = exerciseInput.value.trim();
+                this.validateAndUpdateBlocking();
+            });
+        }
+
+        // Monitor image uploads/paste
+        const exerciseImageContainer = document.getElementById('exercise-image-container');
+        if (exerciseImageContainer) {
+            const observer = new MutationObserver(() => {
+                const hasImage = !exerciseImageContainer.classList.contains('hidden');
+                this.exerciseImage = hasImage;
+                this.validateAndUpdateBlocking();
+            });
+            observer.observe(exerciseImageContainer, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // Monitor clear exercise button
+        const clearExercise = document.getElementById('clear-exercise');
+        if (clearExercise) {
+            clearExercise.addEventListener('click', () => {
+                setTimeout(() => {
+                    this.exerciseText = '';
+                    this.exerciseImage = null;
+                    this.validateAndUpdateBlocking();
+                }, 100);
+            });
+        }
+    }
+
+    validateAndUpdateBlocking() {
+        const hasExerciseText = this.exerciseText.length > 0;
+        const hasExerciseImage = this.exerciseImage;
+        
+        // Content is blocked if there's no exercise text AND no exercise image
+        this.isContentBlocked = !hasExerciseText && !hasExerciseImage;
+        
+        console.log('📝 Exercise validation:', {
+            hasText: hasExerciseText,
+            hasImage: hasExerciseImage,
+            isBlocked: this.isContentBlocked
+        });
+
+        this.updateContentBlockState();
+    }
+
+    updateContentBlockState() {
+        // Update canvas blocking
+        const canvasMain = document.getElementById('canvas-main');
+        const canvasBlockOverlay = document.getElementById('canvas-block-overlay');
+        
+        if (canvasMain && canvasBlockOverlay) {
+            if (this.isContentBlocked) {
+                canvasMain.classList.add('canvas-blocked');
+                canvasBlockOverlay.classList.add('active');
+            } else {
+                canvasMain.classList.remove('canvas-blocked');
+                canvasBlockOverlay.classList.remove('active');
+            }
+        }
+
+        // Update controls blocking
+        const canvasControls = document.getElementById('canvas-controls');
+        if (canvasControls) {
+            if (this.isContentBlocked) {
+                canvasControls.classList.add('controls-blocked');
+            } else {
+                canvasControls.classList.remove('controls-blocked');
+            }
+        }
+
+        // Update help blocking
+        const helpSection = document.getElementById('help-section');
+        if (helpSection) {
+            if (this.isContentBlocked) {
+                helpSection.classList.add('help-blocked');
+            } else {
+                helpSection.classList.remove('help-blocked');
+            }
+        }
+
+        // Disable whiteboard if blocked
+        if (this.whiteboard) {
+            if (this.isContentBlocked) {
+                this.whiteboard.canvas.style.pointerEvents = 'none';
+            } else {
+                this.whiteboard.canvas.style.pointerEvents = 'auto';
+            }
+        }
+
+        console.log('🔄 Content block state updated:', this.isContentBlocked ? 'BLOCKED' : 'UNBLOCKED');
     }
 }
 

@@ -22,6 +22,8 @@
             -ms-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
+            touch-action: none; /* Prevents browser scrolling/zooming with stylus/touch */
+            -webkit-tap-highlight-color: transparent; /* Removes tap highlight on mobile */
         }
 
         #ai-response::-webkit-scrollbar {
@@ -126,6 +128,59 @@
             border: none;
         }
 
+        /* Blocked state styles */
+        .blocked-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(2px);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .blocked-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .blocked-message {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 300px;
+            border: 2px solid #f59e0b;
+        }
+
+        .canvas-blocked {
+            pointer-events: none;
+            filter: grayscale(50%) opacity(50%);
+            transition: all 0.3s ease-in-out;
+        }
+
+        .controls-blocked {
+            pointer-events: none;
+            opacity: 0.5;
+            filter: grayscale(100%);
+            transition: all 0.3s ease-in-out;
+        }
+
+        .help-blocked {
+            pointer-events: none;
+            opacity: 0.5;
+            filter: grayscale(100%);
+            transition: all 0.3s ease-in-out;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .overlay-layout {
@@ -175,15 +230,24 @@
         <div class="overlay-layout relative h-[calc(100vh-140px)] min-h-[600px]">
 
             <!-- Canvas Background -->
-            <div class="canvas-main absolute inset-0 bg-white rounded-lg border-2 border-gray-300 p-4">
+            <div id="canvas-main" class="canvas-main absolute inset-0 bg-white rounded-lg border-2 border-gray-300 p-4">
                 <div class="canvas-container h-full relative">
                     <canvas id="whiteboard" width="1000" height="600"
                         class="w-full h-full border border-gray-200 rounded cursor-crosshair bg-white"></canvas>
+                    
+                    <!-- Canvas Block Overlay -->
+                    <div id="canvas-block-overlay" class="blocked-overlay active">
+                        <div class="blocked-message">
+                            <div class="text-2xl mb-2">🔒</div>
+                            <h3 class="font-bold text-gray-800 mb-2">Pizarra Bloqueada</h3>
+                            <p class="text-sm text-gray-600">Escribe un ejercicio o sube una imagen para comenzar</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Bottom Controls -->
-            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-3 z-10">
+            <div id="canvas-controls" class="controls-blocked absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-3 z-10">
                 <!-- Tool Selection -->
                 <div class="flex space-x-2">
                     <button id="pen-tool"
@@ -271,7 +335,7 @@
             </div>
 
             <!-- Help Bar (Top Right) -->
-            <div class="absolute top-4 right-4 z-10">
+            <div id="help-section" class="help-blocked absolute top-4 right-4 z-10">
                 <!-- Help Toggle Button -->
                 <button id="help-toggle"
                     class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg font-medium flex items-center space-x-2 transition-all duration-200">

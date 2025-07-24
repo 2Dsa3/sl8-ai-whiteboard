@@ -23,7 +23,7 @@ class TutorIA {
         // this.feedbackCollector = new FeedbackCollector(this);
 
         // Token management
-        this.maxTokens = 30;
+        this.maxTokens = 3000;
         this.usedTokens = 0;
         this.tokenStorageKey = 'tutorIA_tokens';
         this.loadTokensFromStorage();

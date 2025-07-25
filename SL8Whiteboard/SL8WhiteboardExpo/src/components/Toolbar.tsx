@@ -24,7 +24,7 @@ const Toolbar: React.FC = () => {
   };
 
   const handleToolChange = () => {
-    const tools = ['pen', 'pencil', 'highlighter', 'eraser'] as const;
+    const tools = ['pen', 'pencil', 'highlighter', 'eraser', 'text'] as const;
     const currentIndex = tools.indexOf(toolsState.currentTool.type as any);
     const nextTool = tools[(currentIndex + 1) % tools.length];
     dispatch(setCurrentTool(nextTool));
@@ -94,7 +94,9 @@ const Toolbar: React.FC = () => {
               styles.buttonText,
               toolsState.currentTool.type === 'eraser' && styles.eraserText
             ]}>
-              {toolsState.currentTool.type === 'eraser' ? '🧽 Eraser' : toolsState.currentTool.type}
+              {toolsState.currentTool.type === 'eraser' ? '🧽 Eraser' : 
+               toolsState.currentTool.type === 'text' ? '📝 Text' : 
+               toolsState.currentTool.type}
             </Text>
           </TouchableOpacity>
           

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { addStroke, removeStroke } from '../store/slices/canvasSlice';
+import { addStroke, removeStroke, addTextElement, removeTextElement, addImageElement, removeImageElement } from '../store/slices/canvasSlice';
 import { addHistoryEntry, undo as undoAction, redo as redoAction } from '../store/slices/historySlice';
 import { Stroke } from '../types';
 
@@ -26,6 +26,18 @@ export const useHistory = () => {
           case 'REMOVE_STROKE':
             dispatch(addStroke(currentEntry.data.stroke));
             break;
+          case 'ADD_TEXT':
+            dispatch(removeTextElement(currentEntry.data.textElement.id));
+            break;
+          case 'REMOVE_TEXT':
+            dispatch(addTextElement(currentEntry.data.textElement));
+            break;
+          case 'ADD_IMAGE':
+            dispatch(removeImageElement(currentEntry.data.imageElement.id));
+            break;
+          case 'REMOVE_IMAGE':
+            dispatch(addImageElement(currentEntry.data.imageElement));
+            break;
         }
       }
       
@@ -47,6 +59,18 @@ export const useHistory = () => {
             break;
           case 'REMOVE_STROKE':
             dispatch(removeStroke(nextEntry.data.stroke.id));
+            break;
+          case 'ADD_TEXT':
+            dispatch(addTextElement(nextEntry.data.textElement));
+            break;
+          case 'REMOVE_TEXT':
+            dispatch(removeTextElement(nextEntry.data.textElement.id));
+            break;
+          case 'ADD_IMAGE':
+            dispatch(addImageElement(nextEntry.data.imageElement));
+            break;
+          case 'REMOVE_IMAGE':
+            dispatch(removeImageElement(nextEntry.data.imageElement.id));
             break;
         }
       }

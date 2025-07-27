@@ -10,11 +10,6 @@ import { Whiteboard } from './draw.js';
 class TutorIA {
     constructor() {
         // API Configuration
-        this.apiKey = 'AIzaSyAojAxx9lFUfzjeZXXETjGG_dlzpn-ktPk';
-
-        console.log(this.apiKey)
-
-        this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
         // Prompt optimization infrastructure - temporarily commented out
         // this.analytics = new PromptAnalytics();
@@ -616,7 +611,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
 
             console.log('🔍 Debug - Sending request to API...');
 
-            const response = await fetch(`${this.apiUrl}?key=${this.apiKey}`, {
+            const response = await fetch(`/api/get-ai-response`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)
@@ -734,7 +729,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
                 generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 }
             };
 
-            const response = await fetch(`${this.apiUrl}?key=${this.apiKey}`, {
+            const response = await fetch(`/api/get-ai-response`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)

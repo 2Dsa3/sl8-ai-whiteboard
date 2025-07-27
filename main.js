@@ -1163,8 +1163,8 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
     getErrorMessage(status, errorData) {
         switch (status) {
             case 400: return 'Solicitud inválida. Verifica que hayas dibujado algo en la pizarra.';
-            case 401: return 'API key inválida. Verifica tu configuración.';
-            case 403: return 'Acceso denegado. Verifica tu API key y permisos.';
+            case 401: return 'Error de autenticación. El backend no pudo validar la solicitud.';
+            case 403: return 'Acceso denegado. El backend no tiene permisos para acceder a la API.';
             case 429: return 'Has superado el límite de solicitudes. Intenta de nuevo en unos minutos.';
             case 500: return 'Error interno del servidor. Intenta de nuevo más tarde.';
             default:
@@ -1173,14 +1173,6 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
                 }
                 return 'No se pudo generar una respuesta. Intenta de nuevo.';
         }
-    }
-
-    setApiKey(key) {
-        this.apiKey = key;
-    }
-
-    isConfigured() {
-        return this.apiKey && this.apiKey !== 'YOUR_API_KEY_HERE';
     }
 
     getHistory() {
@@ -1406,42 +1398,28 @@ const tutorIA = new TutorIA();
 // Make it globally available for debugging
 window.tutorIA = tutorIA;
 
-// Utility function to set API key
-function setGeminiApiKey(key) {
-    if (window.tutorIA) {
-        window.tutorIA.setApiKey(key);
-        console.log('✅ API key updated successfully');
-    } else {
-        console.error('❌ TutorIA not initialized');
-    }
-}
-
 // Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    if (tutorIA.isConfigured()) {
-        console.log('✅ TutorIA initialized successfully with API key configured');
+    console.log('✅ TutorIA initialized successfully.');
 
-        setTimeout(() => {
-            const aiResponse = document.getElementById('ai-response');
-            if (aiResponse && aiResponse.innerHTML.includes('Las respuestas de la IA aparecerán aquí')) {
-                aiResponse.innerHTML = `
-                    <div class="text-green-600 text-xs mb-2 p-2 bg-green-50 rounded border-l-4 border-green-400">
-                        <strong>✅ TutorIA Configurado Correctamente</strong><br>
-                        Sistema de tutorías inteligente activado con 6 modos de ayuda.
-                    </div>
-                    <div class="text-gray-600 text-xs">
-                        <strong>Instrucciones:</strong><br>
-                        1. Escribe tu ejercicio en la sección superior izquierda<br>
-                        2. Dibuja tu trabajo en el canvas<br>
-                        3. Presiona "🆘 Ayuda" para obtener asistencia de la IA<br>
-                        4. O haz preguntas directas en el input inferior
-                    </div>
-                `;
-            }
-        }, 1000);
-    } else {
-        console.warn('⚠️ API Key not configured properly');
-    }
+    setTimeout(() => {
+        const aiResponse = document.getElementById('ai-response');
+        if (aiResponse && aiResponse.innerHTML.includes('Las respuestas de la IA aparecerán aquí')) {
+            aiResponse.innerHTML = `
+                <div class="text-green-600 text-xs mb-2 p-2 bg-green-50 rounded border-l-4 border-green-400">
+                    <strong>✅ TutorIA Listo para Ayudar</strong><br>
+                    Sistema de tutorías inteligente activado.
+                </div>
+                <div class="text-gray-600 text-xs">
+                    <strong>Instrucciones:</strong><br>
+                    1. Escribe tu ejercicio en el área de texto.<br>
+                    2. Dibuja tu solución en la pizarra.<br>
+                    3. Usa el botón "🆘 Ayuda" para obtener asistencia.<br>
+                    4. Haz preguntas directas en el campo de consulta.
+                </div>
+            `;
+        }
+    }, 500);
 });
 
 console.log('✅ TutorIA application initialized successfully!');

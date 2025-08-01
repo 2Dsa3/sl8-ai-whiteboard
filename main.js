@@ -738,6 +738,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(this.getErrorMessage(response.status, errorData));
+                console.error('Method sendQuery failed:', response.status, errorData);
             }
 
             const data = await response.json();

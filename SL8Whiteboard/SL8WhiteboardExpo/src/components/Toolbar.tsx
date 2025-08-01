@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setZoom, resetView, clearCanvas } from '../store/slices/canvasSlice';
 import { setCurrentTool, setToolColor, setToolWidth } from '../store/slices/toolsSlice';
 import { useHistory } from '../hooks/useHistory';
+import ImagePickerButton from './ImagePickerButton';
+import CameraButton from './CameraButton';
 
 const Toolbar: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -142,6 +144,59 @@ const Toolbar: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Images</Text>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity 
+            style={[styles.button, styles.imageButton]} 
+            onPress={async () => {
+              console.log('Paste button clicked');
+              // Trigger paste functionality directly
+              if (typeof window !== 'undefined') {
+                try {
+                  // Try to access clipboard directly
+                  if (navigator?.clipboard) {
+                    console.log('Clipboard API available');
+                    const clipboardItems = await navigator.clipboard.read();
+                    console.log('Clipboard items from button:', clipboardItems);
+                  } else {
+                    console.log('Clipboard API not available');
+                  }
+                } catch (error) {
+                  console.error('Error accessing clipboard from button:', error);
+                }
+                
+                // Also trigger the keyboard event as fallback
+                const event = new KeyboardEvent('keydown', {
+                  key: 'v',
+                  ctrlKey: true,
+                  bubbles: true
+                });
+                document.dispatchEvent(event);
+              }
+            }}
+          >
+            <Text style={styles.buttonText}>📋 Paste</Text>
+          </TouchableOpacity>
+          
+          <ImagePickerButton 
+            pastePosition={{
+              x: (Dimensions.get('window').width / 2 - canvasState.panOffset.x) / canvasState.zoom,
+              y: (Dimensions.get('window').height / 2 - canvasState.panOffset.y) / canvasState.zoom,
+              timestamp: Date.now(),
+            }}
+          />
+          
+          <CameraButton 
+            pastePosition={{
+              x: (Dimensions.get('window').width / 2 - canvasState.panOffset.x) / canvasState.zoom,
+              y: (Dimensions.get('window').height / 2 - canvasState.panOffset.y) / canvasState.zoom,
+              timestamp: Date.now(),
+            }}
+          />
+        </View>
+      </View>
     </View>
   );
 };
@@ -214,6 +269,9 @@ const styles = StyleSheet.create({
     color: '#495057',
     minWidth: 50,
     textAlign: 'center',
+  },
+  imageButton: {
+    backgroundColor: '#28a745',
   },
 });
 

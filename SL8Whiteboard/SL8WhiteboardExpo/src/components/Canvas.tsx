@@ -2,14 +2,21 @@ import React, { useRef, useState, useEffect } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder, GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import Svg, { Path, G, Circle, Text as SvgText, Image as SvgImage } from 'react-native-svg';
 import { useAppDispatch, useAppSelector } from '../store';
-import { setZoom, setPanOffset, addStroke, removeStroke, addTextElement, addImageElement } from '../store/slices/canvasSlice';
+import { setZoom, setPanOffset, addStroke, removeStroke, addTextElement, addImageElement, updateImageElement, selectImageElement, deselectAllImages } from '../store/slices/canvasSlice';
 import { useHistory } from '../hooks/useHistory';
 import { PenTool } from '../tools/PenTool';
 import { PencilTool } from '../tools/PencilTool';
 import { HighlighterTool } from '../tools/HighlighterTool';
 import { EraserTool } from '../tools/EraserTool';
 import { TextTool } from '../tools/TextTool';
-import { Point, Stroke } from '../types';
+import { Point, Stroke, ImageElement } from '../types';
+import { 
+  createImageElement, 
+  compressImage, 
+  saveImageToLocal,
+  isPointInImageBounds,
+  updateImagePosition 
+} from '../utils/imageUtils';
 
 interface CanvasProps {
   width?: number;
@@ -35,6 +42,9 @@ const Canvas: React.FC<CanvasProps> = ({
   const [currentText, setCurrentText] = useState('');
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [lastCursorPosition, setLastCursorPosition] = useState<Point>({ x: width / 2, y: height / 2, timestamp: Date.now() });
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [draggedImageId, setDraggedImageId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0, timestamp: Date.now() });
   const currentTool = useRef<PenTool | PencilTool | HighlighterTool | EraserTool | TextTool>(new PenTool(toolsState.currentTool.settings));
   const lastPinchDistance = useRef<number>(0);
   const initialPanOffset = useRef({ x: 0, y: 0 });
@@ -208,6 +218,19 @@ const Canvas: React.FC<CanvasProps> = ({
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  // Check if a point is within any image element
+  const getImageAtPoint = (point: Point): ImageElement | null => {
+    // Check images in reverse order (top to bottom)
+    const imageElements = Object.values(canvasState.imageElements);
+    for (let i = imageElements.length - 1; i >= 0; i--) {
+      const imageElement = imageElements[i];
+      if (isPointInImageBounds(point, imageElement)) {
+        return imageElement;
+      }
+    }
+    return null;
+  };
+
   // Handle paste events (Ctrl+V / Cmd+V)
   const handlePaste = async (event: ClipboardEvent) => {
     event.preventDefault();
@@ -215,7 +238,7 @@ const Canvas: React.FC<CanvasProps> = ({
     const clipboardItems = event.clipboardData?.items;
     if (!clipboardItems) return;
 
-    // Get paste position (center of visible area or last cursor position)
+    // Get paste position (center of visible area)
     const pastePosition: Point = {
       x: (width / 2 - canvasState.panOffset.x) / canvasState.zoom,
       y: (height / 2 - canvasState.panOffset.y) / canvasState.zoom,
@@ -226,30 +249,38 @@ const Canvas: React.FC<CanvasProps> = ({
       const item = clipboardItems[i];
 
       if (item.type.startsWith('image/')) {
-        // Handle image paste
+        // Handle image paste with improved processing
         const file = item.getAsFile();
         if (file) {
           const reader = new FileReader();
-          reader.onload = (e) => {
-            const imageUri = e.target?.result as string;
-            const imageElement = {
-              id: generateId('image'),
-              layerId: 'default-layer',
-              uri: imageUri,
-              position: pastePosition,
-              size: { width: 200, height: 150 }, // Default size, can be adjusted
-              rotation: 0,
-              timestamp: Date.now(),
-              bounds: {
-                x: pastePosition.x,
-                y: pastePosition.y,
-                width: 200,
-                height: 150,
-              },
-            };
+          reader.onload = async (e) => {
+            try {
+              const originalUri = e.target?.result as string;
+              
+              // Compress and process the image
+              const compressedUri = await compressImage(originalUri, 800, 600, 0.8);
+              const savedUri = await saveImageToLocal(compressedUri);
+              
+              // Create image element using utility function
+              const imageElement = createImageElement(
+                savedUri,
+                pastePosition,
+                'default-layer'
+              );
 
-            dispatch(addImageElement(imageElement));
-            addToHistory('ADD_IMAGE', { imageElement });
+              dispatch(addImageElement(imageElement));
+              addToHistory('ADD_IMAGE', { imageElement });
+            } catch (error) {
+              console.error('Error processing pasted image:', error);
+              // Fallback to original implementation
+              const imageElement = createImageElement(
+                e.target?.result as string,
+                pastePosition,
+                'default-layer'
+              );
+              dispatch(addImageElement(imageElement));
+              addToHistory('ADD_IMAGE', { imageElement });
+            }
           };
           reader.readAsDataURL(file);
         }
@@ -326,8 +357,121 @@ const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
-  // Add paste event listener and keyboard handling
+  // Handle paste functionality for React Native/Expo
+  const handlePasteFromClipboard = async () => {
+    console.log('handlePasteFromClipboard called');
+    
+    try {
+      // Get paste position (center of visible area)
+      const pastePosition: Point = {
+        x: (width / 2 - canvasState.panOffset.x) / canvasState.zoom,
+        y: (height / 2 - canvasState.panOffset.y) / canvasState.zoom,
+        timestamp: Date.now(),
+      };
+
+      console.log('Paste position:', pastePosition);
+
+      // For web platform, use web APIs
+      if (typeof window !== 'undefined' && navigator?.clipboard) {
+        console.log('Using modern clipboard API');
+        
+        try {
+          // First try to read clipboard items (for images)
+          const clipboardItems = await navigator.clipboard.read();
+          console.log('Clipboard items:', clipboardItems);
+          
+          for (const clipboardItem of clipboardItems) {
+            console.log('Clipboard item types:', clipboardItem.types);
+            
+            // Handle images
+            for (const type of clipboardItem.types) {
+              if (type.startsWith('image/')) {
+                console.log('Found image in clipboard:', type);
+                
+                const blob = await clipboardItem.getType(type);
+                console.log('Got blob:', blob);
+                
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                  try {
+                    const originalUri = e.target?.result as string;
+                    console.log('Image loaded, URI length:', originalUri?.length);
+                    
+                    // Create image element using utility function
+                    const imageElement = createImageElement(
+                      originalUri,
+                      pastePosition,
+                      'default-layer'
+                    );
+
+                    console.log('Created image element:', imageElement);
+                    dispatch(addImageElement(imageElement));
+                    addToHistory('ADD_IMAGE', { imageElement });
+                    console.log('Image added to canvas');
+                  } catch (error) {
+                    console.error('Error processing clipboard image:', error);
+                  }
+                };
+                reader.onerror = (error) => {
+                  console.error('FileReader error:', error);
+                };
+                reader.readAsDataURL(blob);
+                return; // Exit after handling first image
+              }
+            }
+          }
+
+          // Handle text if no image was found
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              console.log('Found text in clipboard:', text);
+              const textElement = {
+                id: generateId('text'),
+                layerId: 'default-layer',
+                content: text,
+                position: pastePosition,
+                style: {
+                  fontSize: 16,
+                  fontWeight: 'normal' as const,
+                  fontStyle: 'normal' as const,
+                  color: '#000000',
+                },
+                timestamp: Date.now(),
+                bounds: {
+                  x: pastePosition.x,
+                  y: pastePosition.y,
+                  width: text.length * 10,
+                  height: 20,
+                },
+              };
+
+              dispatch(addTextElement(textElement));
+              addToHistory('ADD_TEXT', { textElement });
+            }
+          } catch (textError) {
+            console.log('No text in clipboard or permission denied:', textError);
+          }
+        } catch (error) {
+          console.log('Modern clipboard API failed, trying fallback:', error);
+          // Fallback to paste event listener
+          if (typeof document !== 'undefined') {
+            console.log('Adding paste event listener as fallback');
+            document.addEventListener('paste', handlePaste as any, { once: true });
+          }
+        }
+      } else {
+        console.log('Clipboard API not available');
+      }
+    } catch (error) {
+      console.error('Error handling paste:', error);
+    }
+  };
+
+  // Add keyboard handling for web
   useEffect(() => {
+    if (typeof window === 'undefined') return; // Skip on React Native
+
     const handleKeyDown = async (event: KeyboardEvent) => {
       // Handle typing when in text mode or typing mode
       if (isTyping || toolsState.currentTool.type === 'text') {
@@ -362,90 +506,11 @@ const Canvas: React.FC<CanvasProps> = ({
       // Check for Ctrl+V (Windows/Linux) or Cmd+V (Mac)
       if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         event.preventDefault();
-
-        try {
-          // Use modern Clipboard API
-          const clipboardItems = await navigator.clipboard.read();
-
-          // Get paste position (center of visible area)
-          const pastePosition: Point = {
-            x: (width / 2 - canvasState.panOffset.x) / canvasState.zoom,
-            y: (height / 2 - canvasState.panOffset.y) / canvasState.zoom,
-            timestamp: Date.now(),
-          };
-
-          for (const clipboardItem of clipboardItems) {
-            // Handle images
-            for (const type of clipboardItem.types) {
-              if (type.startsWith('image/')) {
-                const blob = await clipboardItem.getType(type);
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                  const imageUri = e.target?.result as string;
-                  const imageElement = {
-                    id: generateId('image'),
-                    layerId: 'default-layer',
-                    uri: imageUri,
-                    position: pastePosition,
-                    size: { width: 200, height: 150 },
-                    rotation: 0,
-                    timestamp: Date.now(),
-                    bounds: {
-                      x: pastePosition.x,
-                      y: pastePosition.y,
-                      width: 200,
-                      height: 150,
-                    },
-                  };
-
-                  dispatch(addImageElement(imageElement));
-                  addToHistory('ADD_IMAGE', { imageElement });
-                };
-                reader.readAsDataURL(blob);
-                return; // Exit after handling first image
-              }
-            }
-          }
-
-          // Handle text if no image was found
-          try {
-            const text = await navigator.clipboard.readText();
-            if (text) {
-              const textElement = {
-                id: generateId('text'),
-                layerId: 'default-layer',
-                content: text,
-                position: pastePosition,
-                style: {
-                  fontSize: 16,
-                  fontWeight: 'normal' as const,
-                  fontStyle: 'normal' as const,
-                  color: '#000000',
-                },
-                timestamp: Date.now(),
-                bounds: {
-                  x: pastePosition.x,
-                  y: pastePosition.y,
-                  width: text.length * 10,
-                  height: 20,
-                },
-              };
-
-              dispatch(addTextElement(textElement));
-              addToHistory('ADD_TEXT', { textElement });
-            }
-          } catch (textError) {
-            console.log('No text in clipboard or permission denied');
-          }
-        } catch (error) {
-          console.log('Clipboard access denied or not supported:', error);
-          // Fallback to the old paste event method
-          document.addEventListener('paste', handlePaste as any, { once: true });
-        }
+        await handlePasteFromClipboard();
       }
     };
 
-    // Add event listeners
+    // Add event listeners for web only
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('paste', handlePaste as any);
 
@@ -453,7 +518,7 @@ const Canvas: React.FC<CanvasProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('paste', handlePaste as any);
     };
-  }, [canvasState.zoom, canvasState.panOffset, width, height]);
+  }, [canvasState.zoom, canvasState.panOffset, width, height, isTyping, currentText, typingPosition]);
 
   // Handle erasing logic - split strokes instead of removing them completely
   const handleErasing = (point: Point) => {
@@ -500,9 +565,29 @@ const Canvas: React.FC<CanvasProps> = ({
         return;
       }
 
-      // Single finger - start drawing or erasing
+      // Single finger - check for image interaction first
       const touch = nativeEvent.touches[0];
       const point = getCanvasPoint(touch);
+
+      // Check if we're touching an image
+      const touchedImage = getImageAtPoint(point);
+      if (touchedImage) {
+        // Start dragging the image
+        setIsDraggingImage(true);
+        setDraggedImageId(touchedImage.id);
+        dispatch(selectImageElement(touchedImage.id));
+        
+        // Calculate offset from image position to touch point
+        setDragOffset({
+          x: point.x - touchedImage.position.x,
+          y: point.y - touchedImage.position.y,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // If not touching an image, deselect any selected images
+      dispatch(deselectAllImages());
 
       if (toolsState.currentTool.type === 'eraser') {
         setIsErasing(true);
@@ -549,11 +634,24 @@ const Canvas: React.FC<CanvasProps> = ({
         return;
       }
 
-      // Single finger - continue drawing or erasing
+      // Single finger - continue drawing, erasing, or dragging image
       const touch = nativeEvent.touches[0];
       const point = getCanvasPoint(touch);
 
-      if (toolsState.currentTool.type === 'eraser') {
+      if (isDraggingImage && draggedImageId) {
+        // Continue dragging the image
+        const draggedImage = canvasState.imageElements[draggedImageId];
+        if (draggedImage) {
+          const newPosition = {
+            x: point.x - dragOffset.x,
+            y: point.y - dragOffset.y,
+            timestamp: Date.now(),
+          };
+          
+          const updatedImage = updateImagePosition(draggedImage, newPosition);
+          dispatch(updateImageElement(updatedImage));
+        }
+      } else if (toolsState.currentTool.type === 'eraser') {
         // Update eraser position and continue erasing if active
         setEraserPosition(point);
         if (isErasing) {
@@ -574,7 +672,12 @@ const Canvas: React.FC<CanvasProps> = ({
       const { nativeEvent } = evt;
 
       if (nativeEvent.touches.length === 0) {
-        if (isDrawing) {
+        if (isDraggingImage) {
+          // End image dragging
+          setIsDraggingImage(false);
+          setDraggedImageId(null);
+          // Note: We keep the image selected for potential further manipulation
+        } else if (isDrawing) {
           // End drawing
           const touch = nativeEvent.changedTouches[0];
           const point = getCanvasPoint(touch);
@@ -633,17 +736,77 @@ const Canvas: React.FC<CanvasProps> = ({
   };
 
   const renderImageElements = () => {
-    return Object.values(canvasState.imageElements).map((imageElement) => (
-      <SvgImage
-        key={imageElement.id}
-        x={imageElement.position.x}
-        y={imageElement.position.y}
-        width={imageElement.size.width}
-        height={imageElement.size.height}
-        href={imageElement.uri}
-        preserveAspectRatio="xMidYMid meet"
-      />
-    ));
+    return Object.values(canvasState.imageElements).map((imageElement) => {
+      const isSelected = canvasState.selectedImageId === imageElement.id;
+      
+      return (
+        <G key={imageElement.id}>
+          {/* Render the image */}
+          <SvgImage
+            x={imageElement.position.x}
+            y={imageElement.position.y}
+            width={imageElement.size.width}
+            height={imageElement.size.height}
+            href={imageElement.uri}
+            preserveAspectRatio="xMidYMid meet"
+          />
+          
+          {/* Render selection border if selected */}
+          {isSelected && (
+            <rect
+              x={imageElement.position.x - 2}
+              y={imageElement.position.y - 2}
+              width={imageElement.size.width + 4}
+              height={imageElement.size.height + 4}
+              fill="none"
+              stroke="#007AFF"
+              strokeWidth={2}
+              strokeDasharray="5,5"
+              opacity={0.8}
+            />
+          )}
+          
+          {/* Render selection handles if selected */}
+          {isSelected && (
+            <>
+              {/* Corner handles */}
+              <Circle
+                cx={imageElement.position.x}
+                cy={imageElement.position.y}
+                r={4}
+                fill="#007AFF"
+                stroke="white"
+                strokeWidth={1}
+              />
+              <Circle
+                cx={imageElement.position.x + imageElement.size.width}
+                cy={imageElement.position.y}
+                r={4}
+                fill="#007AFF"
+                stroke="white"
+                strokeWidth={1}
+              />
+              <Circle
+                cx={imageElement.position.x}
+                cy={imageElement.position.y + imageElement.size.height}
+                r={4}
+                fill="#007AFF"
+                stroke="white"
+                strokeWidth={1}
+              />
+              <Circle
+                cx={imageElement.position.x + imageElement.size.width}
+                cy={imageElement.position.y + imageElement.size.height}
+                r={4}
+                fill="#007AFF"
+                stroke="white"
+                strokeWidth={1}
+              />
+            </>
+          )}
+        </G>
+      );
+    });
   };
 
   // Handle mouse move for web (to show eraser cursor)

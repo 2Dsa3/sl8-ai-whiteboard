@@ -11,6 +11,9 @@ export interface UIState {
   errorMessage: string | null;
   selectedElements: string[];
   showPerformanceWarning: boolean;
+  imagePickerVisible: boolean;
+  cameraVisible: boolean;
+  selectedImageId: string | null;
 }
 
 const initialState: UIState = {
@@ -24,6 +27,9 @@ const initialState: UIState = {
   errorMessage: null,
   selectedElements: [],
   showPerformanceWarning: false,
+  imagePickerVisible: false,
+  cameraVisible: false,
+  selectedImageId: null,
 };
 
 const uiSlice = createSlice({
@@ -100,6 +106,18 @@ const uiSlice = createSlice({
     setShowPerformanceWarning: (state, action: PayloadAction<boolean>) => {
       state.showPerformanceWarning = action.payload;
     },
+    
+    setImagePickerVisible: (state, action: PayloadAction<boolean>) => {
+      state.imagePickerVisible = action.payload;
+    },
+    
+    setCameraVisible: (state, action: PayloadAction<boolean>) => {
+      state.cameraVisible = action.payload;
+    },
+    
+    setSelectedImageId: (state, action: PayloadAction<string | null>) => {
+      state.selectedImageId = action.payload;
+    },
   },
 });
 
@@ -121,6 +139,9 @@ export const {
   removeSelectedElement,
   clearSelection,
   setShowPerformanceWarning,
+  setImagePickerVisible,
+  setCameraVisible,
+  setSelectedImageId,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

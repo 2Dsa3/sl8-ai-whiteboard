@@ -8,6 +8,7 @@ export interface CanvasState {
   strokes: Record<string, Stroke>;
   textElements: Record<string, TextElement>;
   imageElements: Record<string, ImageElement>;
+  selectedImageId: string | null;
 }
 
 const CANVAS_MULTIPLIER = 4; // Canvas is 4x screen size
@@ -23,6 +24,7 @@ const initialState: CanvasState = {
   strokes: {},
   textElements: {},
   imageElements: {},
+  selectedImageId: null,
 };
 
 const canvasSlice = createSlice({
@@ -101,6 +103,15 @@ const canvasSlice = createSlice({
       state.strokes = {};
       state.textElements = {};
       state.imageElements = {};
+      state.selectedImageId = null;
+    },
+    
+    selectImageElement: (state, action: PayloadAction<string>) => {
+      state.selectedImageId = action.payload;
+    },
+    
+    deselectAllImages: (state) => {
+      state.selectedImageId = null;
     },
   },
 });
@@ -121,6 +132,8 @@ export const {
   updateImageElement,
   removeImageElement,
   clearCanvas,
+  selectImageElement,
+  deselectAllImages,
 } = canvasSlice.actions;
 
 export default canvasSlice.reducer;

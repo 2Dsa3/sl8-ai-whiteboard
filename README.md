@@ -4,7 +4,7 @@
 
 ## The Visual Debugging Whiteboard for Algorithmic Thinking
 
-**SL8.ai** is your AI-powered reasoning partner that helps you work through challenging algorithmic problems — not by diving straight into code, but by guiding your logic step-by-step on a digital whiteboard.
+**SL8.ai** is your AI-powered reasoning partner that helps you work through challenging algorithmic problems not by diving straight into code, but by guiding your logic step-by-step on a digital whiteboard.
 
 🏆 **Winner of Ecuador Tech Week 2025 Hackathon**
 

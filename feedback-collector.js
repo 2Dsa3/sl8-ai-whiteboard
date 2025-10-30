@@ -73,7 +73,7 @@ class FeedbackCollector {
             
             // Auto-hide after 30 seconds if no interaction
             setTimeout(() => {
-                if (feedbackContainer && !feedbackContainer.classList.contains('hidden')) {
+                if (!feedbackContainer.classList.contains('hidden')) {
                     feedbackContainer.classList.add('hidden');
                 }
             }, 30000);
@@ -104,9 +104,7 @@ class FeedbackCollector {
             feedback
         );
 
-        // Update experiment tracking
-        const outcome = type === 'helpful' ? 'success' : 
-                       type === 'confusing' ? 'partial_success' : 'failure';
+        // Update experiment tracking (computed when needed elsewhere)
         
         // Store for golden dataset if positive
         if (type === 'helpful' && this.tutorIA.analytics.interactions.length > 0) {

@@ -1,0 +1,1426 @@
+   1: // Main application logic for TutorIA - Clean version without duplications
+   2: 
+   3: import { Whiteboard } from './draw.js';
+   4: // Temporarily commented out analytics imports to fix basic functionality
+   5: // import { PromptAnalytics } from '../analytics.js';
+   6: // import { PromptExperiments } from '../experiments.js';
+   7: // import { GoldenDataset } from '../golden-dataset.js';
+   8: // import { FeedbackCollector } from '../feedback-collector.js';
+   9: 
+  10: class TutorIA {
+  11:     constructor() {
+  12:         // API Configuration
+  13: 
+  14:         // Prompt optimization infrastructure - temporarily commented out
+  15:         // this.analytics = new PromptAnalytics();
+  16:         // this.experiments = new PromptExperiments();
+  17:         // this.goldenDataset = new GoldenDataset();
+  18:         // this.feedbackCollector = new FeedbackCollector(this);
+  19: 
+  20:         // Token management
+  21:         this.maxTokens = 3000;
+  22:         this.usedTokens = 0;
+  23:         this.tokenStorageKey = 'tutorIA_tokens';
+  24:         this.loadTokensFromStorage();
+  25: 
+  26:         // Conversation context
+  27:         this.currentMode = 'initial';
+  28:         this.conversationHistory = [];
+  29:         this.responseHistory = [];
+  30: 
+  31:         // Prompt optimization system
+  32:         this.promptVariants = {
+  33:             temperature: {
+  34:                 stuck: 0.8,     // High creativity for unblocking
+  35:                 hint: 0.6,      // Moderate creativity for hints
+  36:                 clarify: 0.4,   // Low creativity for clarity
+  37:                 next_step: 0.7, // Moderate-high for guidance
+  38:                 verify: 0.3,    // Low creativity for analysis
+  39:                 solution: 0.5   // Balanced for comprehensive explanation
+  40:             },
+  41:             maxOutputTokens: {
+  42:                 stuck: 800,     // Longer for emotional support and exploration
+  43:                 hint: 400,      // Shorter for focused hints
+  44:                 clarify: 600,   // Medium for clear explanations
+  45:                 next_step: 500, // Medium for specific guidance
+  46:                 verify: 700,    // Longer for thorough analysis
+  47:                 solution: 1200  // Longest for complete explanations
+  48:             }
+  49:         };
+  50: 
+  51:         // User interaction patterns for prompt adaptation
+  52:         this.userProfile = {
+  53:             skillLevel: 'unknown', // beginner, intermediate, advanced
+  54:             preferredStyle: 'unknown', // direct, socratic, encouraging
+  55:             strugglingAreas: [], // track recurring difficulty patterns
+  56:             successfulInteractions: [] // track what works for this user
+  57:         };
+  58: 
+  59:         // Exercise validation and blocking system
+  60:         this.isContentBlocked = true;  // Start with content blocked
+  61:         this.exerciseText = '';
+  62:         this.exerciseImage = null;
+  63: 
+  64:         // Initialize the whiteboard but keep it blocked initially
+  65:         this.whiteboard = null;
+  66: 
+  67:         // Optimized Tutoring Prompts - Based on pedagogical research
+  68:         this.tutorPrompts = {
+  69:             initial: `Eres TutorIA, un tutor de programación experto y empático especializado en pensamiento algorítmico.
+  70: 
+  71: ANÁLISIS VISUAL REQUERIDO:
+  72: - Examina meticulosamente cada elemento en la pizarra: código, diagramas, texto, números
+  73: - Si la imagen no está clara al 95%, pregunta específicamente qué no puedes leer
+  74: - Identifica el nivel de progreso del estudiante basándote en lo que ves
+  75: 
+  76: MARCO PEDAGÓGICO:
+  77: 1. RECONOCIMIENTO: Siempre comienza destacando qué está haciendo bien
+  78: 2. DIAGNÓSTICO: Identifica el tipo de ayuda necesaria (conceptual, implementación, debugging)
+  79: 3. RESPUESTA ADAPTADA: Proporciona el nivel exacto de orientación necesaria
+  80: 
+  81: PRINCIPIOS CLAVE:
+  82: - Usa el método socrático: pregunta antes de explicar
+  83: - Conecta con conocimiento previo visible en su trabajo
+  84: - Promueve descubrimiento independiente, no dependencia
+  85: - Mantén alta la confianza mientras corriges errores
+  86: 
+  87: Responde en español con curiosidad genuina sobre su pensamiento.`,
+  88: 
+  89:             stuck: `ESTADO IDENTIFICADO: Estudiante bloqueado necesita desbloquearse.
+  90: 
+  91: ESTRATEGIA DE DESBLOQUEO:
+  92: 1. VALIDACIÓN EMOCIONAL: "Veo que has trabajado duro en esto..."
+  93: 2. ANÁLISIS VISUAL: Describe específicamente qué observas en su trabajo
+  94: 3. REFRAME DEL PROBLEMA: Ayúdalo a ver el problema desde otro ángulo
+  95: 4. PREGUNTAS GUÍA: Haz 2-3 preguntas que despierten nuevas conexiones
+  96: 
+  97: TÉCNICAS ESPECÍFICAS:
+  98: - "¿Qué pasaría si...?" (escenarios hipotéticos)
+  99: - "¿Has visto algo similar antes en...?" (conexión con experiencias previas)
+ 100: - "¿Qué parte te resulta más familiar?" (ancla en fortalezas)
+ 101: 
+ 102: EVITA: Dar pasos directos, resolver por él, mostrar frustración
+ 103: BUSCA: Que tenga un "¡Ah!" momento de comprensión
+ 104: 
+ 105: Responde con energía positiva y curiosidad investigativa.`,
+ 106: 
+ 107:             hint: `MODO: Pista Progresiva Calibrada
+ 108: 
+ 109: PROTOCOLO DE PISTA:
+ 110: 1. CONFIRMACIÓN VISUAL: "Veo que has [descripción específica de su trabajo]..."
+ 111: 2. EVALUACIÓN: Identifica exactamente dónde está en su proceso de resolución
+ 112: 3. PISTA MÍNIMA VIABLE: Da LA MENOR cantidad de información que lo ayude a avanzar UN paso
+ 113: 4. VERIFICACIÓN: Pregunta si la pista tiene sentido antes de continuar
+ 114: 
+ 115: NIVELES DE PISTA (usar el mínimo necesario):
+ 116: - Nivel 1: Pregunta reflexiva que lo guíe al insight
+ 117: - Nivel 2: Señala hacia el área correcta sin dar la respuesta
+ 118: - Nivel 3: Da una analogía o ejemplo paralelo
+ 119: - Nivel 4: Estructura de alto nivel (solo si está muy perdido)
+ 120: 
+ 121: REGLAS ESTRICTAS:
+ 122: - NO reveles la implementación directa
+ 123: - NO des múltiples pistas a la vez
+ 124: - SÍ confirma cuando está en el camino correcto
+ 125: - SÍ pregunta qué piensa sobre la pista dada
+ 126: 
+ 127: Responde con una sola pista elegante y potente.`,
+ 128: 
+ 129:             clarify: `MODO: Clarificación de Problema (Sin Spoilers)
+ 130: 
+ 131: OBJETIVO: Aclarar QUÉ resolver, no CÓMO resolverlo.
+ 132: 
+ 133: ESTRUCTURA DE CLARIFICACIÓN:
+ 134: 1. CONTEXTO: Reformula el problema en palabras más simples
+ 135: 2. EJEMPLOS CONCRETOS: Da 2-3 casos de entrada/salida diferentes
+ 136: 3. RESTRICCIONES: Clarifica límites y casos especiales
+ 137: 4. EXPECTATIVAS: Explica qué tipo de solución se busca
+ 138: 
+ 139: TÉCNICAS PEDAGÓGICAS:
+ 140: - Usa analogías del mundo real cuando sea útil
+ 141: - Descompón problemas complejos en partes más simples
+ 142: - Identifica conceptos clave que necesita entender primero
+ 143: - Da ejemplos que cubran casos normales y extremos
+ 144: 
+ 145: LÍMITES ESTRICTOS:
+ 146: - NO menciones algoritmos específicos
+ 147: - NO des pistas sobre la implementación
+ 148: - NO sugieras estructuras de datos específicas
+ 149: - SÍ asegúrate que comprende completamente el problema
+ 150: 
+ 151: Responde enfocándote exclusivamente en la comprensión del enunciado.`,
+ 152: 
+ 153:             next_step: `MODO: Orientación de Siguiente Paso
+ 154: 
+ 155: ANÁLISIS REQUERIDO:
+ 156: 1. ESTADO ACTUAL: Evalúa precisamente dónde está en su solución
+ 157: 2. SIGUIENTE LÓGICO: Identifica el próximo paso más natural
+ 158: 3. DOSIFICACIÓN: Da orientación suficiente para UN paso, no más
+ 159: 
+ 160: ESTRATEGIA DE ORIENTACIÓN:
+ 161: - Pregunta qué piensa que debería hacer después
+ 162: - Si está correcto: confirma y da confianza para proceder
+ 163: - Si está perdido: sugiere la dirección general sin especificar cómo
+ 164: - Si está equivocado: redirige suavemente con una pregunta
+ 165: 
+ 166: FORMULACIONES EFECTIVAS:
+ 167: - "Ahora que tienes X, ¿qué necesitas para Y?"
+ 168: - "¿Qué información te falta para continuar?"
+ 169: - "¿Has considerado qué pasa cuando...?"
+ 170: 
+ 171: MANTÉN AUTONOMÍA: El objetivo es que él tome las decisiones, tú solo orientas la dirección.
+ 172: 
+ 173: Responde con orientación específica pero no prescriptiva.`,
+ 174: 
+ 175:             verify: `MODO: Evaluación Constructiva de Solución
+ 176: 
+ 177: PROTOCOLO DE VERIFICACIÓN:
+ 178: 1. ANÁLISIS COMPLETO: Examina toda la lógica propuesta paso a paso
+ 179: 2. TESTING MENTAL: Prueba con casos normales y extremos
+ 180: 3. FEEDBACK BALANCEADO: Destaca aciertos antes de señalar errores
+ 181: 
+ 182: ESTRUCTURA DE RESPUESTA:
+ 183: - RECONOCIMIENTO: "Has aplicado bien el concepto de..."
+ 184: - EVALUACIÓN: "Tu solución funciona para casos como..."
+ 185: - IDENTIFICACIÓN DE GAPS: "Considera qué pasaría si..."
+ 186: - ORIENTACIÓN: "¿Cómo podrías manejar el caso donde...?"
+ 187: 
+ 188: SI ES CORRECTA:
+ 189: - Celebra específicamente qué hizo bien
+ 190: - Explica por qué su enfoque es sólido
+ 191: - Menciona posibles optimizaciones (si aplica)
+ 192: - Conecta con patrones algorítmicos generales
+ 193: 
+ 194: SI ES INCORRECTA:
+ 195: - Da un contraejemplo concreto que demuestre el error
+ 196: - Pregunta qué piensa sobre ese caso específico
+ 197: - Guía hacia la corrección sin dar la respuesta directa
+ 198: 
+ 199: Responde con honestidad constructiva que mantenga alta la motivación.`,
+ 200: 
+ 201:             solution: `MODO: Solución Educativa Completa
+ 202: 
+ 203: ENFOQUE PEDAGÓGICO INTEGRAL:
+ 204: 1. RECONOCIMIENTO DEL ESFUERZO: Valida todo el trabajo realizado
+ 205: 2. SOLUCIÓN ESTRUCTURADA: Presenta paso a paso con razonamiento claro
+ 206: 3. ANÁLISIS COMPARATIVO: Contrasta su enfoque vs. solución óptima
+ 207: 4. GENERALIZACIÓN: Extrae patrones aplicables a problemas similares
+ 208: 
+ 209: ESTRUCTURA DE PRESENTACIÓN:
+ 210: - INSIGHT CLAVE: "El breakthrough necesario era reconocer que..."
+ 211: - SOLUCIÓN PASO A PASO: Con explicación del porqué en cada paso
+ 212: - ANÁLISIS DE SU TRABAJO: "Tu enfoque de X fue correcto porque..."
+ 213: - LECCIONES EXTRAÍBLES: "Este patrón aparece también en..."
+ 214: 
+ 215: ELEMENTOS DIDÁCTICOS:
+ 216: - Conecta con conceptos que ya domina
+ 217: - Explica por qué otras aproximaciones no funcionan
+ 218: - Menciona cuándo usar vs. no usar esta técnica
+ 219: - Sugiere problemas similares para practicar
+ 220: 
+ 221: CIERRE MOTIVACIONAL:
+ 222: - Resalta el progreso en su pensamiento algorítmico
+ 223: - Identifica fortalezas específicas demostradas
+ 224: - Sugiere próximos desafíos apropiados para su nivel
+ 225: 
+ 226: Responde como un mentor experto que celebra el crecimiento intelectual.`
+ 227:         };
+ 228: 
+ 229:         // Load user profile from previous sessions
+ 230:         this.loadUserProfile();
+ 231: 
+ 232:         this.bindEvents();
+ 233:     }
+ 234: 
+ 235:     // Token management
+ 236:     loadTokensFromStorage() {
+ 237:         const stored = localStorage.getItem(this.tokenStorageKey);
+ 238:         if (stored) {
+ 239:             const data = JSON.parse(stored);
+ 240:             const today = new Date().toDateString();
+ 241:             if (data.date === today) {
+ 242:                 this.usedTokens = data.usedTokens || 0;
+ 243:             } else {
+ 244:                 this.usedTokens = 0;
+ 245:                 this.saveTokensToStorage();
+ 246:             }
+ 247:         }
+ 248:         this.updateTokenDisplay();
+ 249:     }
+ 250: 
+ 251:     saveTokensToStorage() {
+ 252:         const data = {
+ 253:             usedTokens: this.usedTokens,
+ 254:             date: new Date().toDateString()
+ 255:         };
+ 256:         localStorage.setItem(this.tokenStorageKey, JSON.stringify(data));
+ 257:     }
+ 258: 
+ 259:     hasTokensAvailable() {
+ 260:         return this.usedTokens < this.maxTokens;
+ 261:     }
+ 262: 
+ 263:     consumeToken() {
+ 264:         if (this.hasTokensAvailable()) {
+ 265:             this.usedTokens++;
+ 266:             this.saveTokensToStorage();
+ 267:             this.updateTokenDisplay();
+ 268:             return true;
+ 269:         }
+ 270:         return false;
+ 271:     }
+ 272: 
+ 273:     getRemainingTokens() {
+ 274:         return Math.max(0, this.maxTokens - this.usedTokens);
+ 275:     }
+ 276: 
+ 277:     updateTokenDisplay() {
+ 278:         if (!document.getElementById('tokenCounter')) {
+ 279:             this.addTokenCounter();
+ 280:         }
+ 281:         const tokenCounter = document.getElementById('tokenCounter');
+ 282:         const remaining = this.getRemainingTokens();
+ 283:         if (tokenCounter) {
+ 284:             const colorClass = remaining <= 5 ? 'text-red-500' : remaining <= 15 ? 'text-yellow-500' : 'text-green-500';
+ 285:             tokenCounter.innerHTML = `<span class="font-semibold ${colorClass}">🪙 ${remaining}/${this.maxTokens} consultas restantes</span>`;
+ 286:         }
+ 287:     }
+ 288: 
+ 289:     addTokenCounter() {
+ 290:         const header = document.querySelector('header');
+ 291:         if (header && !document.getElementById('tokenCounter')) {
+ 292:             const tokenContainer = document.createElement('div');
+ 293:             tokenContainer.id = 'tokenCounter';
+ 294:             tokenContainer.className = 'text-center mt-2 text-sm';
+ 295:             header.appendChild(tokenContainer);
+ 296:         }
+ 297:     }
+ 298: 
+ 299:     // Event binding
+ 300:     bindEvents() {
+ 301:         document.addEventListener('DOMContentLoaded', () => {
+ 302:             // Initialize content blocking first
+ 303:             this.initializeContentBlocking();
+ 304:             
+ 305:             // Initialize Whiteboard first
+ 306:             console.log('🚀 Initializing Whiteboard...');
+ 307:             this.whiteboard = new Whiteboard('whiteboard', 'eraser-cursor');
+ 308:             window.whiteboard = this.whiteboard;
+ 309: 
+ 310:             if (!this.whiteboard || !this.whiteboard.canvas) {
+ 311:                 console.error('❌ Failed to initialize Whiteboard!');
+ 312:                 return;
+ 313:             }
+ 314: 
+ 315:             console.log('✅ Whiteboard initialized successfully');
+ 316: 
+ 317:             // Initialize pen tool as default
+ 318:             setTimeout(() => {
+ 319:                 this.selectPenTool();
+ 320:             }, 100);
+ 321:             
+ 322:             // Exercise input validation
+ 323:             this.setupExerciseValidation();
+ 324:             // Help buttons
+ 325:             const helpToggle = document.getElementById('help-toggle');
+ 326:             if (helpToggle) {
+ 327:                 helpToggle.addEventListener('click', this.toggleHelpMenu.bind(this));
+ 328:             }
+ 329: 
+ 330:             for (let i = 1; i <= 6; i++) {
+ 331:                 const helpBtn = document.getElementById(`help-${i}`);
+ 332:                 if (helpBtn) {
+ 333:                     helpBtn.addEventListener('click', () => this.getHelp(i));
+ 334:                 }
+ 335:             }
+ 336: 
+ 337:             // Close help menu when clicking outside
+ 338:             document.addEventListener('click', (e) => {
+ 339:                 const helpMenu = document.getElementById('help-menu');
+ 340:                 const helpToggle = document.getElementById('help-toggle');
+ 341:                 if (helpMenu && helpToggle && !helpToggle.contains(e.target) && !helpMenu.contains(e.target)) {
+ 342:                     this.closeHelpMenu();
+ 343:                 }
+ 344:             });
+ 345: 
+ 346:             // Canvas controls
+ 347:             const clearCanvas = document.getElementById('clear-canvas');
+ 348:             if (clearCanvas) {
+ 349:                 clearCanvas.addEventListener('click', this.clearCanvas.bind(this));
+ 350:             }
+ 351:             // Action buttons
+ 352:             const clearAll = document.getElementById('clear-all');
+ 353:             if (clearAll) {
+ 354:                 clearAll.addEventListener('click', this.clearAll.bind(this));
+ 355:             }
+ 356: 
+ 357:             const undoAction = document.getElementById('undo-action');
+ 358:             if (undoAction) {
+ 359:                 undoAction.addEventListener('click', this.undoAction.bind(this));
+ 360:             }
+ 361: 
+ 362:             const redoAction = document.getElementById('redo-action');
+ 363:             if (redoAction) {
+ 364:                 redoAction.addEventListener('click', this.redoAction.bind(this));
+ 365:             }
+ 366: 
+ 367:             // Drawing tools
+ 368:             const penTool = document.getElementById('pen-tool');
+ 369:             if (penTool) {
+ 370:                 penTool.addEventListener('click', this.selectPenTool.bind(this));
+ 371:             }
+ 372: 
+ 373:             const eraserTool = document.getElementById('eraser-tool');
+ 374:             if (eraserTool) {
+ 375:                 eraserTool.addEventListener('click', this.selectEraserTool.bind(this));
+ 376:             }
+ 377: 
+ 378:             // Eraser size control
+ 379:             const eraserSize = document.getElementById('eraser-size');
+ 380:             const eraserSizeDisplay = document.getElementById('eraser-size-display');
+ 381:             if (eraserSize && eraserSizeDisplay) {
+ 382:                 eraserSize.addEventListener('input', (e) => {
+ 383:                     const size = parseInt(e.target.value);
+ 384:                     eraserSizeDisplay.textContent = `${size}px`;
+ 385:                     if (window.whiteboard && window.whiteboard.mode === 'eraser') {
+ 386:                         window.whiteboard.setBrushSize(size);
+ 387:                         this.updateCanvasCursor('eraser', size);
+ 388:                     }
+ 389:                 });
+ 390:             }
+ 391: 
+ 392:             // Query functionality
+ 393:             const sendQuery = document.getElementById('send-query');
+ 394:             if (sendQuery) {
+ 395:                 sendQuery.addEventListener('click', this.sendQuery.bind(this));
+ 396:             }
+ 397: 
+ 398:             const queryInput = document.getElementById('query-input');
+ 399:             if (queryInput) {
+ 400:                 queryInput.addEventListener('keypress', (e) => {
+ 401:                     if (e.key === 'Enter') {
+ 402:                         this.sendQuery();
+ 403:                     }
+ 404:                 });
+ 405:             }
+ 406: 
+ 407:             // Output panel controls
+ 408:             const minimizeOutput = document.getElementById('minimize-output');
+ 409:             if (minimizeOutput) {
+ 410:                 minimizeOutput.addEventListener('click', this.minimizeOutputPanel.bind(this));
+ 411:             }
+ 412: 
+ 413:             const closeOutput = document.getElementById('close-output');
+ 414:             if (closeOutput) {
+ 415:                 closeOutput.addEventListener('click', this.closeOutputPanel.bind(this));
+ 416:             }
+ 417: 
+ 418:             const minimizedOutput = document.getElementById('minimized-output');
+ 419:             if (minimizedOutput) {
+ 420:                 minimizedOutput.addEventListener('click', this.showOutputPanel.bind(this));
+ 421:             }
+ 422:             // Exercise functionality
+ 423:             const clearExercise = document.getElementById('clear-exercise');
+ 424:             if (clearExercise) {
+ 425:                 clearExercise.addEventListener('click', this.clearExercise.bind(this));
+ 426:             }
+ 427: 
+ 428:             this.setupExerciseImagePaste();
+ 429:         });
+ 430:     }
+ 431: 
+ 432:     // Help menu functions
+ 433:     toggleHelpMenu() {
+ 434:         const helpMenu = document.getElementById('help-menu');
+ 435:         const helpArrow = document.getElementById('help-arrow');
+ 436: 
+ 437:         if (helpMenu && helpArrow) {
+ 438:             const isHidden = helpMenu.classList.contains('hidden');
+ 439:             if (isHidden) {
+ 440:                 helpMenu.classList.remove('hidden');
+ 441:                 helpArrow.style.transform = 'rotate(180deg)';
+ 442:             } else {
+ 443:                 helpMenu.classList.add('hidden');
+ 444:                 helpArrow.style.transform = 'rotate(0deg)';
+ 445:             }
+ 446:         }
+ 447:     }
+ 448: 
+ 449:     closeHelpMenu() {
+ 450:         const helpMenu = document.getElementById('help-menu');
+ 451:         const helpArrow = document.getElementById('help-arrow');
+ 452: 
+ 453:         if (helpMenu && helpArrow) {
+ 454:             helpMenu.classList.add('hidden');
+ 455:             helpArrow.style.transform = 'rotate(0deg)';
+ 456:         }
+ 457:     }
+ 458: 
+ 459:     // Main help function
+ 460:     async getHelp(helpType) {
+ 461:         try {
+ 462:             // Check if content is blocked
+ 463:             if (this.isContentBlocked) {
+ 464:                 this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de solicitar ayuda. 📝');
+ 465:                 return;
+ 466:             }
+ 467: 
+ 468:             if (!this.hasTokensAvailable()) {
+ 469:                 this.showError('Has agotado tus consultas diarias. Regresa mañana para más ayuda del tutor IA. 🪙');
+ 470:                 return;
+ 471:             }
+ 472: 
+ 473:             this.showOutputPanel();
+ 474: 
+ 475:             const helpModes = {
+ 476:                 1: 'stuck', 2: 'hint', 3: 'clarify',
+ 477:                 4: 'next_step', 5: 'verify', 6: 'solution'
+ 478:             };
+ 479: 
+ 480:             const mode = helpModes[helpType];
+ 481:             if (!mode) {
+ 482:                 this.showError('Tipo de ayuda no válido.');
+ 483:                 return;
+ 484:             }
+ 485: 
+ 486:             this.currentMode = mode;
+ 487:             this.closeHelpMenu();
+ 488: 
+ 489:             // Comentado temporalmente para debug - siempre permitir envío
+ 490:             // if (['stuck', 'hint', 'next_step', 'verify'].includes(mode)) {
+ 491:             //     if (window.whiteboard && window.whiteboard.isEmpty()) {
+ 492:             //         this.showError('Por favor, dibuja o escribe algo en la pizarra antes de solicitar este tipo de ayuda.');
+ 493:             //         return;
+ 494:             //     }
+ 495:             // }
+ 496: 
+ 497:             if (!this.consumeToken()) {
+ 498:                 this.showError('Error al procesar la solicitud. Intenta de nuevo.');
+ 499:                 return;
+ 500:             }
+ 501: 
+ 502:             this.showLoading(true);
+ 503: 
+ 504:             // Debug: Check whiteboard status
+ 505:             console.log('🔍 Debug - Whiteboard exists:', !!window.whiteboard);
+ 506:             if (window.whiteboard) {
+ 507:                 console.log('🔍 Debug - Canvas isEmpty:', window.whiteboard.isEmpty());
+ 508:                 console.log('🔍 Debug - Canvas element:', window.whiteboard.canvas);
+ 509:             }
+ 510: 
+ 511:             // Siempre capturar la imagen para debug
+ 512:             let imageData = null;
+ 513:             try {
+ 514:                 imageData = window.whiteboard ? window.whiteboard.getCanvasImageData() : null;
+ 515:                 console.log('🔍 Debug - Image data captured:', !!imageData);
+ 516:                 console.log('🔍 Debug - Image data length:', imageData ? imageData.length : 0);
+ 517:             } catch (error) {
+ 518:                 console.warn('⚠️ Error capturing image data:', error);
+ 519:                 imageData = null;
+ 520:             }
+ 521:             
+ 522:             const exerciseText = document.getElementById('exercise-input')?.value || '';
+ 523: 
+ 524:             // PROMPT OPTIMIZATION - Track interaction start (temporarily disabled)
+ 525:             // const startTime = Date.now();
+ 526:             // const interactionContext = {
+ 527:             //     mode: mode,
+ 528:             //     hasDrawing: !!(window.whiteboard && !window.whiteboard.isEmpty()),
+ 529:             //     exercisePresent: !!exerciseText.trim(),
+ 530:             //     conversationLength: this.conversationHistory.length,
+ 531:             //     attemptNumber: this.conversationHistory.filter(h => h.includes(`Modo: ${mode}`)).length + 1
+ 532:             // };
+ 533: 
+ 534:             // Get optimized prompt with user context
+ 535:             let contextualPrompt = this.getOptimizedPrompt(mode, exerciseText);
+ 536: 
+ 537:             if (this.conversationHistory.length > 0) {
+ 538:                 contextualPrompt += `\n\nCONTEXTO DE CONVERSACIÓN: Has tenido ${this.conversationHistory.length} interacciones previas. Historial reciente: ${this.conversationHistory.slice(-2).join('\n')}`;
+ 539:             }
+ 540:             
+ 541:             // Add user profiling context
+ 542:             if (this.userProfile.skillLevel !== 'unknown') {
+ 543:                 contextualPrompt += `\n\nPERFIL DEL ESTUDIANTE: Nivel estimado: ${this.userProfile.skillLevel}. Estilo preferido: ${this.userProfile.preferredStyle}.`;
+ 544:             }
+ 545: 
+ 546:             const requestParts = [{ text: contextualPrompt }];
+ 547: 
+ 548:             // Debug: Check if image should be sent
+ 549:             console.log('🔍 Debug - Mode:', mode);
+ 550:             console.log('🔍 Debug - Should send image:', ['stuck', 'hint', 'next_step', 'verify'].includes(mode));
+ 551:             console.log('🔍 Debug - Has imageData:', !!imageData);
+ 552:             console.log('🔍 Debug - Canvas isEmpty:', window.whiteboard ? window.whiteboard.isEmpty() : 'No whiteboard');
+ 553: 
+ 554:             // Only include image if we have valid data and canvas is not empty
+ 555:             const shouldIncludeImage = imageData && 
+ 556:                                      imageData.length > 0 && 
+ 557:                                      window.whiteboard && 
+ 558:                                      !window.whiteboard.isEmpty() &&
+ 559:                                      ['stuck', 'hint', 'next_step', 'verify'].includes(mode);
+ 560: 
+ 561:             if (shouldIncludeImage) {
+ 562:                 try {
+ 563:                     requestParts.push({
+ 564:                         inline_data: {
+ 565:                             mime_type: "image/jpeg",
+ 566:                             data: imageData
+ 567:                         }
+ 568:                     });
+ 569:                     console.log('🔍 Debug - Image added to request!');
+ 570:                     console.log('🔍 Debug - Image data sample:', imageData.substring(0, 50) + '...');
+ 571:                 } catch (error) {
+ 572:                     console.warn('⚠️ Error adding image to request:', error);
+ 573:                 }
+ 574:             } else {
+ 575:                 console.log('🔍 Debug - Image NOT added to request');
+ 576:                 // Modify prompt to work without image for modes that typically need it
+ 577:                 if (['stuck', 'hint', 'next_step', 'verify'].includes(mode)) {
+ 578:                     requestParts[0].text += "\n\nNOTA: El estudiante no ha dibujado nada aún en la pizarra. Proporciona orientación general sobre cómo abordar este tipo de problemas y cómo empezar a trabajar en la pizarra.";
+ 579:                 }
+ 580:             }
+ 581: 
+ 582:             const exerciseImageData = this.getExerciseImageData();
+ 583:             if (exerciseImageData) {
+ 584:                 requestParts.push({
+ 585:                     inlineData: { mimeType: "image/jpeg", data: exerciseImageData }
+ 586:                 });
+ 587:             }
+ 588: 
+ 589:             if (mode === 'clarify' && (!imageData || !window.whiteboard || window.whiteboard.isEmpty())) {
+ 590:                 requestParts[0].text += "\n\nProporciona ejemplos y explicaciones sobre tipos de problemas comunes.";
+ 591:             }
+ 592: 
+ 593:             const requestBody = {
+ 594:                 contents: [{ parts: requestParts }],
+ 595:                 generationConfig: {
+ 596:                     temperature: this.promptVariants.temperature[mode] || 0.7,
+ 597:                     topK: 40, 
+ 598:                     topP: 0.95, 
+ 599:                     maxOutputTokens: this.promptVariants.maxOutputTokens[mode] || 1024
+ 600:                 }
+ 601:             };
+ 602: 
+ 603:             // Debug: Log the complete request
+ 604:             console.log('🔍 Debug - Request parts count:', requestParts.length);
+ 605:             console.log('🔍 Debug - Request structure:', {
+ 606:                 partsCount: requestParts.length,
+ 607:                 hasText: requestParts.some(part => part.text),
+ 608:                 hasImage: requestParts.some(part => part.inlineData)
+ 609:             });
+ 610:             console.log('🔍 Debug - Full request body:', JSON.stringify(requestBody, null, 2));
+ 611: 
+ 612:             console.log('🔍 Debug - Sending request to API...');
+ 613: 
+ 614:             const response = await fetch(`/api/get-ai-response`, {
+ 615:                 method: 'POST',
+ 616:                 headers: { 'Content-Type': 'application/json' },
+ 617:                 body: JSON.stringify(requestBody)
+ 618:             });
+ 619: 
+ 620:             console.log('🔍 Debug - API Response status:', response.status);
+ 621:             console.log('🔍 Debug - API Response ok:', response.ok);
+ 622: 
+ 623:             if (!response.ok) {
+ 624:                 const errorData = await response.json().catch(() => ({}));
+ 625:                 console.log('🔍 Debug - API Error data:', errorData);
+ 626:                 console.log('🔍 Debug - API Error details:', JSON.stringify(errorData, null, 2));
+ 627:                 throw new Error(this.getErrorMessage(response.status, errorData));
+ 628:             }
+ 629: 
+ 630:             const data = await response.json();
+ 631:             console.log('🔍 Debug - API Response data:', data);
+ 632: 
+ 633:             if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+ 634:                 const aiText = data.candidates[0].content.parts[0].text;
+ 635: 
+ 636:                 this.conversationHistory.push(`Modo: ${mode} - Respuesta: ${aiText.substring(0, 100)}...`);
+ 637:                 if (this.conversationHistory.length > 5) {
+ 638:                     this.conversationHistory.shift();
+ 639:                 }
+ 640: 
+ 641:                 const typeLabels = {
+ 642:                     stuck: '🚫 Apoyo', hint: '💡 Pista', clarify: '❓ Aclaración',
+ 643:                     next_step: '👣 Siguiente Paso', verify: '✅ Verificación', solution: '📖 Solución'
+ 644:                 };
+ 645: 
+ 646:                 this.showResponse(aiText, typeLabels[mode] || 'Ayuda');
+ 647:                 this.addToHistory(`Ayuda: ${typeLabels[mode]}`, aiText);
+ 648:                 
+ 649:                 // Add simple feedback buttons for prompt optimization
+ 650:                 this.addFeedbackButtons(mode);
+ 651: 
+ 652:                 // PROMPT OPTIMIZATION - Track successful interaction (temporarily disabled)
+ 653:                 // const responseTime = Date.now() - startTime;
+ 654:                 // const interactionId = this.analytics.trackInteraction({
+ 655:                 //     type: mode,
+ 656:                 //     userQuery: `${typeLabels[mode]} request`,
+ 657:                 //     aiResponse: aiText,
+ 658:                 //     responseTime: responseTime,
+ 659:                 //     userAction: 'response_shown',
+ 660:                 //     hasDrawing: interactionContext.hasDrawing,
+ 661:                 //     drawingComplexity: imageData ? (imageData.length > 1000 ? 'complex' : 'simple') : 'none'
+ 662:                 // });
+ 663: 
+ 664:                 // Show feedback form
+ 665:                 // setTimeout(() => {
+ 666:                 //     this.feedbackCollector.showFeedbackForm(interactionId);
+ 667:                 // }, 2000);
+ 668: 
+ 669:                 // Track for experiments
+ 670:                 // this.experiments.trackResult(
+ 671:                 //     { mode, prompt: contextualPrompt, context: interactionContext },
+ 672:                 //     'success' // We'll update this later based on user feedback
+ 673:                 // );
+ 674: 
+ 675:                 const remaining = this.getRemainingTokens();
+ 676:                 if (remaining <= 5 && remaining > 0) {
+ 677:                     setTimeout(() => this.showTokenWarning(remaining), 2000);
+ 678:                 }
+ 679:             } else {
+ 680:                 throw new Error('Respuesta inesperada de la API');
+ 681:             }
+ 682:         } catch (error) {
+ 683:             console.error('Error getting help:', error);
+ 684:             this.showError(`Error: ${error.message}`);
+ 685:         } finally {
+ 686:             this.showLoading(false);
+ 687:         }
+ 688:     }
+ 689:     async sendQuery() {
+ 690:         // Check if content is blocked
+ 691:         if (this.isContentBlocked) {
+ 692:             this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de hacer preguntas. 📝');
+ 693:             return;
+ 694:         }
+ 695: 
+ 696:         const queryInput = document.getElementById('query-input');
+ 697:         const query = queryInput?.value?.trim();
+ 698: 
+ 699:         if (!query) {
+ 700:             this.showError('Por favor, escribe una pregunta antes de enviar.');
+ 701:             return;
+ 702:         }
+ 703: 
+ 704:         try {
+ 705:             this.showOutputPanel();
+ 706:             this.showLoading(true);
+ 707: 
+ 708:             const imageData = window.whiteboard && !window.whiteboard.isEmpty() ? window.whiteboard.getCanvasImageData() : null;
+ 709:             const exerciseText = document.getElementById('exercise-input')?.value || '';
+ 710: 
+ 711:             let contextPrompt = `Eres un tutor experto. Un estudiante pregunta: "${query}". `;
+ 712:             if (exerciseText.trim()) {
+ 713:                 contextPrompt += `Contexto del ejercicio: ${exerciseText}. `;
+ 714:             }
+ 715:             contextPrompt += `Responde en español de manera útil sin dar la respuesta completa.`;
+ 716: 
+ 717:             const parts = [{ text: contextPrompt }];
+ 718:             if (imageData) {
+ 719:                 parts.push({ inline_data: { mime_type: "image/png", data: imageData } });
+ 720:             }
+ 721: 
+ 722:             const exerciseImageData = this.getExerciseImageData();
+ 723:             if (exerciseImageData) {
+ 724:                 parts.push({ inline_data: { mime_type: "image/jpeg", data: exerciseImageData } });
+ 725:             }
+ 726: 
+ 727:             const requestBody = {
+ 728:                 contents: [{ parts }],
+ 729:                 generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 }
+ 730:             };
+ 731: 
+ 732:             const response = await fetch(`/api/get-ai-response`, {
+ 733:                 method: 'POST',
+ 734:                 headers: { 'Content-Type': 'application/json' },
+ 735:                 body: JSON.stringify(requestBody)
+ 736:             });
+ 737: 
+ 738:             if (!response.ok) {
+ 739:                 const errorData = await response.json().catch(() => ({}));
+ 740:                 throw new Error(this.getErrorMessage(response.status, errorData));
+ 741:                 console.error('Method sendQuery failed:', response.status, errorData);
+ 742:             }
+ 743: 
+ 744:             const data = await response.json();
+ 745:             if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+ 746:                 const aiText = data.candidates[0].content.parts[0].text;
+ 747:                 this.showResponse(aiText, '❓ Consulta');
+ 748:                 this.addToHistory(query, aiText);
+ 749:                 if (queryInput) queryInput.value = '';
+ 750:             } else {
+ 751:                 throw new Error('Respuesta inesperada de la API');
+ 752:             }
+ 753:         } catch (error) {
+ 754:             console.error('Error sending query:', error);
+ 755:             this.showError(`Error: ${error.message}`);
+ 756:         } finally {
+ 757:             this.showLoading(false);
+ 758:         }
+ 759:     }
+ 760:     
+ 761:     // Prompt optimization methods
+ 762:     getOptimizedPrompt(mode, exerciseText) {
+ 763:         let basePrompt = this.tutorPrompts[mode];
+ 764:         
+ 765:         // Add exercise context if provided
+ 766:         if (exerciseText.trim()) {
+ 767:             basePrompt += `\n\nCONTEXTO DEL EJERCICIO PROPORCIONADO: "${exerciseText}"`;
+ 768:         }
+ 769:         
+ 770:         // Adapt prompt based on user skill level
+ 771:         if (this.userProfile.skillLevel === 'beginner') {
+ 772:             basePrompt += `\n\nADAPTACIÓN: Este estudiante es principiante. Usa vocabulario simple, explica conceptos básicos y sé extra paciente.`;
+ 773:         } else if (this.userProfile.skillLevel === 'advanced') {
+ 774:             basePrompt += `\n\nADAPTACIÓN: Este estudiante es avanzado. Puedes usar terminología técnica y referir conceptos más sofisticados.`;
+ 775:         }
+ 776:         
+ 777:         // Adapt based on preferred style
+ 778:         if (this.userProfile.preferredStyle === 'direct') {
+ 779:             basePrompt += `\n\nESTILO PREFERIDO: Este estudiante prefiere respuestas directas y concisas.`;
+ 780:         } else if (this.userProfile.preferredStyle === 'socratic') {
+ 781:             basePrompt += `\n\nESTILO PREFERIDO: Este estudiante responde bien a preguntas guía y descubrimiento dirigido.`;
+ 782:         }
+ 783:         
+ 784:         return basePrompt;
+ 785:     }
+ 786:     
+ 787:     updateUserProfile(mode, wasHelpful) {
+ 788:         // Simple skill level assessment based on interaction patterns
+ 789:         if (mode === 'solution' && this.conversationHistory.length < 3) {
+ 790:             this.userProfile.skillLevel = 'beginner';
+ 791:         } else if (mode === 'verify' && wasHelpful) {
+ 792:             this.userProfile.skillLevel = 'intermediate';
+ 793:         } else if (mode === 'next_step' && this.conversationHistory.length > 5) {
+ 794:             this.userProfile.skillLevel = 'advanced';
+ 795:         }
+ 796:         
+ 797:         // Track successful interaction patterns
+ 798:         if (wasHelpful) {
+ 799:             this.userProfile.successfulInteractions.push({
+ 800:                 mode: mode,
+ 801:                 timestamp: Date.now(),
+ 802:                 context: this.conversationHistory.length
+ 803:             });
+ 804:         }
+ 805:         
+ 806:         // Save profile to localStorage for persistence
+ 807:         localStorage.setItem('tutorIA_userProfile', JSON.stringify(this.userProfile));
+ 808:     }
+ 809:     
+ 810:     loadUserProfile() {
+ 811:         const stored = localStorage.getItem('tutorIA_userProfile');
+ 812:         if (stored) {
+ 813:             try {
+ 814:                 this.userProfile = { ...this.userProfile, ...JSON.parse(stored) };
+ 815:             } catch (e) {
+ 816:                 console.warn('Could not load user profile:', e);
+ 817:             }
+ 818:         }
+ 819:     }
+ 820:     
+ 821:     addFeedbackButtons(mode) {
+ 822:         const aiResponse = document.getElementById('ai-response');
+ 823:         if (aiResponse) {
+ 824:             const feedbackHtml = `
+ 825:                 <div class="feedback-container mt-2 p-2 bg-gray-50 rounded border text-center">
+ 826:                     <div class="text-xs text-gray-600 mb-2">¿Te ayudó esta respuesta?</div>
+ 827:                     <div class="flex justify-center space-x-2">
+ 828:                         <button class="feedback-btn bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs" 
+ 829:                                 onclick="window.tutorIA.recordFeedback('${mode}', true)">
+ 830:                             👍 Útil
+ 831:                         </button>
+ 832:                         <button class="feedback-btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs" 
+ 833:                                 onclick="window.tutorIA.recordFeedback('${mode}', false)">
+ 834:                             👎 Confuso
+ 835:                         </button>
+ 836:                     </div>
+ 837:                 </div>
+ 838:             `;
+ 839:             
+ 840:             // Add feedback to the last response
+ 841:             const responses = aiResponse.querySelectorAll('.mb-3');
+ 842:             if (responses.length > 0) {
+ 843:                 const lastResponse = responses[responses.length - 1];
+ 844:                 lastResponse.insertAdjacentHTML('beforeend', feedbackHtml);
+ 845:             }
+ 846:         }
+ 847:     }
+ 848:     
+ 849:     recordFeedback(mode, wasHelpful) {
+ 850:         // Update user profile based on feedback
+ 851:         this.updateUserProfile(mode, wasHelpful);
+ 852:         
+ 853:         // Hide feedback buttons after selection
+ 854:         const feedbackContainers = document.querySelectorAll('.feedback-container');
+ 855:         feedbackContainers.forEach(container => {
+ 856:             const selectedButton = container.querySelector('.feedback-btn');
+ 857:             if (selectedButton) {
+ 858:                 container.innerHTML = `
+ 859:                     <div class="text-xs text-gray-500">
+ 860:                         ${wasHelpful ? '✅ Gracias por el feedback positivo' : '📝 Tomaré nota para mejorar'}
+ 861:                     </div>
+ 862:                 `;
+ 863:             }
+ 864:         });
+ 865:         
+ 866:         // Log for development
+ 867:         console.log('📊 Feedback recorded:', { mode, wasHelpful, userProfile: this.userProfile });
+ 868:     }
+ 869:     // Action functions
+ 870:     clearAll() {
+ 871:         if (confirm('¿Estás seguro de que quieres eliminar todo el contenido?')) {
+ 872:             if (window.whiteboard) window.whiteboard.clearCanvas();
+ 873:             this.clearExercise();
+ 874: 
+ 875:             const aiResponse = document.getElementById('ai-response');
+ 876:             if (aiResponse) {
+ 877:                 aiResponse.innerHTML = '<p class="text-gray-500 italic">Las respuestas de la IA aparecerán aquí...</p>';
+ 878:             }
+ 879: 
+ 880:             this.responseHistory = [];
+ 881:             this.conversationHistory = [];
+ 882:             this.showExerciseSuccess('🗑️ Todo el contenido ha sido eliminado');
+ 883:         }
+ 884:     }
+ 885: 
+ 886:     undoAction() {
+ 887:         if (window.whiteboard && window.whiteboard.undo) {
+ 888:             const success = window.whiteboard.undo();
+ 889:             if (success) {
+ 890:                 this.showExerciseSuccess('↶ Acción deshecha');
+ 891:             } else {
+ 892:                 this.showError('No hay acciones para deshacer.');
+ 893:             }
+ 894:         } else {
+ 895:             this.showError('Función de deshacer no disponible en este momento.');
+ 896:         }
+ 897:     }
+ 898: 
+ 899:     redoAction() {
+ 900:         if (window.whiteboard && window.whiteboard.redo) {
+ 901:             const success = window.whiteboard.redo();
+ 902:             if (success) {
+ 903:                 this.showExerciseSuccess('↷ Acción rehecha');
+ 904:             } else {
+ 905:                 this.showError('No hay acciones para rehacer.');
+ 906:             }
+ 907:         } else {
+ 908:             this.showError('Función de rehacer no disponible en este momento.');
+ 909:         }
+ 910:     }
+ 911: 
+ 912:     clearCanvas() {
+ 913:         if (window.whiteboard) {
+ 914:             window.whiteboard.clearCanvas();
+ 915:             const aiResponse = document.getElementById('ai-response');
+ 916:             if (aiResponse) {
+ 917:                 aiResponse.innerHTML = '<p class="text-gray-500 italic">Las respuestas de la IA aparecerán aquí...</p>';
+ 918:             }
+ 919:             this.responseHistory = [];
+ 920:         }
+ 921:     }
+ 922: 
+ 923:     clearExercise() {
+ 924:         const exerciseInput = document.getElementById('exercise-input');
+ 925:         const imageContainer = document.getElementById('exercise-image-container');
+ 926:         const exerciseImage = document.getElementById('exercise-image');
+ 927: 
+ 928:         if (exerciseInput) {
+ 929:             exerciseInput.value = '';
+ 930:             exerciseInput.style.height = 'auto';
+ 931:         }
+ 932: 
+ 933:         if (imageContainer && exerciseImage) {
+ 934:             imageContainer.classList.add('hidden');
+ 935:             exerciseImage.src = '';
+ 936:             this.exerciseImageData = null;
+ 937:         }
+ 938: 
+ 939:         this.showExerciseSuccess('🗑️ Ejercicio limpiado');
+ 940:     }
+ 941: 
+ 942:     // Drawing tool functions
+ 943:     selectPenTool() {
+ 944:         if (window.whiteboard) {
+ 945:             window.whiteboard.setMode('pen');
+ 946:             this.updateToolButtons();
+ 947:             this.hideEraserSizePanel();
+ 948:             this.updateCanvasCursor('pen');
+ 949:         }
+ 950:     }
+ 951: 
+ 952:     selectEraserTool() {
+ 953:         if (window.whiteboard) {
+ 954:             window.whiteboard.setMode('eraser');
+ 955:             this.updateToolButtons();
+ 956:             this.showEraserSizePanel();
+ 957: 
+ 958:             const eraserSize = document.getElementById('eraser-size');
+ 959:             const size = eraserSize ? parseInt(eraserSize.value) : 15;
+ 960: 
+ 961:             if (eraserSize) {
+ 962:                 window.whiteboard.setBrushSize(size);
+ 963:             }
+ 964: 
+ 965:             this.updateCanvasCursor('eraser', size);
+ 966:         }
+ 967:     }
+ 968:     updateToolButtons() {
+ 969:         const penTool = document.getElementById('pen-tool');
+ 970:         const eraserTool = document.getElementById('eraser-tool');
+ 971: 
+ 972:         if (penTool && eraserTool && window.whiteboard) {
+ 973:             // Reset both buttons
+ 974:             penTool.classList.remove('bg-blue-500', 'text-white');
+ 975:             penTool.classList.add('bg-gray-300', 'text-gray-700');
+ 976:             eraserTool.classList.remove('bg-orange-500', 'text-white');
+ 977:             eraserTool.classList.add('bg-gray-300', 'text-gray-700');
+ 978: 
+ 979:             // Activate current tool
+ 980:             if (window.whiteboard.mode === 'pen') {
+ 981:                 penTool.classList.remove('bg-gray-300', 'text-gray-700');
+ 982:                 penTool.classList.add('bg-blue-500', 'text-white');
+ 983:             } else if (window.whiteboard.mode === 'eraser') {
+ 984:                 eraserTool.classList.remove('bg-gray-300', 'text-gray-700');
+ 985:                 eraserTool.classList.add('bg-orange-500', 'text-white');
+ 986:             }
+ 987:         }
+ 988:     }
+ 989: 
+ 990:     showEraserSizePanel() {
+ 991:         const eraserSizePanel = document.getElementById('eraser-size-panel');
+ 992:         if (eraserSizePanel) eraserSizePanel.classList.remove('hidden');
+ 993:     }
+ 994: 
+ 995:     hideEraserSizePanel() {
+ 996:         const eraserSizePanel = document.getElementById('eraser-size-panel');
+ 997:         if (eraserSizePanel) eraserSizePanel.classList.add('hidden');
+ 998:     }
+ 999: 
+1000:     updateCanvasCursor(tool, size = 15) {
+1001:         const canvas = document.getElementById('whiteboard');
+1002:         if (!canvas) return;
+1003: 
+1004:         if (tool === 'eraser') {
+1005:             const cursorSize = Math.max(12, Math.min(size, 50));
+1006:             const cursorSvg = `
+1007:                 <svg width="${cursorSize}" height="${cursorSize}" xmlns="http://www.w3.org/2000/svg">
+1008:                     <circle cx="${cursorSize / 2}" cy="${cursorSize / 2}" r="${(cursorSize - 3) / 2}" 
+1009:                             fill="rgba(255,255,255,0.3)" stroke="black" stroke-width="2" opacity="0.9"/>
+1010:                 </svg>
+1011:             `;
+1012:             const encodedSvg = encodeURIComponent(cursorSvg);
+1013:             const cursorUrl = `data:image/svg+xml,${encodedSvg}`;
+1014:             canvas.style.cursor = `url("${cursorUrl}") ${cursorSize / 2} ${cursorSize / 2}, auto`;
+1015:         } else {
+1016:             canvas.style.cursor = 'crosshair';
+1017:         }
+1018:     }
+1019: 
+1020:     // Output panel functions
+1021:     showOutputPanel() {
+1022:         const outputPanel = document.getElementById('output-panel');
+1023:         const minimizedOutput = document.getElementById('minimized-output');
+1024: 
+1025:         if (outputPanel && minimizedOutput) {
+1026:             outputPanel.classList.remove('hidden');
+1027:             minimizedOutput.classList.add('hidden');
+1028:         }
+1029:     }
+1030: 
+1031:     minimizeOutputPanel() {
+1032:         const outputPanel = document.getElementById('output-panel');
+1033:         const minimizedOutput = document.getElementById('minimized-output');
+1034: 
+1035:         if (outputPanel && minimizedOutput) {
+1036:             outputPanel.classList.add('hidden');
+1037:             minimizedOutput.classList.remove('hidden');
+1038: 
+1039:             const responseCount = document.querySelectorAll('#ai-response .mb-3').length;
+1040:             const countBadge = minimizedOutput.querySelector('.bg-blue-600');
+1041:             if (countBadge) {
+1042:                 countBadge.textContent = responseCount > 0 ? responseCount : '1';
+1043:             }
+1044:         }
+1045:     }
+1046: 
+1047:     closeOutputPanel() {
+1048:         const outputPanel = document.getElementById('output-panel');
+1049:         const minimizedOutput = document.getElementById('minimized-output');
+1050: 
+1051:         if (outputPanel && minimizedOutput) {
+1052:             outputPanel.classList.add('hidden');
+1053:             minimizedOutput.classList.add('hidden');
+1054:         }
+1055:     }
+1056: 
+1057:     showLoading(show) {
+1058:         const loadingIndicator = document.getElementById('loadingIndicator');
+1059:         const aiResponse = document.getElementById('ai-response');
+1060:         const sendQuery = document.getElementById('send-query');
+1061: 
+1062:         if (show) {
+1063:             if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+1064:             if (aiResponse) aiResponse.classList.add('hidden');
+1065:             if (sendQuery) {
+1066:                 sendQuery.disabled = true;
+1067:                 sendQuery.classList.add('opacity-50', 'cursor-not-allowed');
+1068:             }
+1069:         } else {
+1070:             if (loadingIndicator) loadingIndicator.classList.add('hidden');
+1071:             if (aiResponse) aiResponse.classList.remove('hidden');
+1072:             if (sendQuery) {
+1073:                 sendQuery.disabled = false;
+1074:                 sendQuery.classList.remove('opacity-50', 'cursor-not-allowed');
+1075:             }
+1076:         }
+1077:     }
+1078: 
+1079:     showResponse(text, type = 'Respuesta') {
+1080:         const aiResponse = document.getElementById('ai-response');
+1081:         if (aiResponse) {
+1082:             const timestamp = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+1083:             const responseHtml = `
+1084:                 <div class="mb-3 p-2 bg-white rounded border-l-4 border-blue-400">
+1085:                     <div class="text-xs text-gray-500 mb-1">${type} - ${timestamp}</div>
+1086:                     <div class="text-gray-800">${text}</div>
+1087:                 </div>
+1088:             `;
+1089: 
+1090:             if (aiResponse.innerHTML.includes('Las respuestas de la IA aparecerán aquí')) {
+1091:                 aiResponse.innerHTML = responseHtml;
+1092:             } else {
+1093:                 aiResponse.innerHTML += responseHtml;
+1094:             }
+1095: 
+1096:             aiResponse.scrollTop = aiResponse.scrollHeight;
+1097:         }
+1098:     }
+1099: 
+1100:     showError(message) {
+1101:         const aiResponse = document.getElementById('ai-response');
+1102:         if (aiResponse) {
+1103:             const timestamp = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+1104:             const errorHtml = `
+1105:                 <div class="mb-3 p-2 bg-red-50 rounded border-l-4 border-red-400">
+1106:                     <div class="text-xs text-red-500 mb-1">❌ Error - ${timestamp}</div>
+1107:                     <div class="text-red-700 font-medium">${message}</div>
+1108:                 </div>
+1109:             `;
+1110: 
+1111:             if (aiResponse.innerHTML.includes('Las respuestas de la IA aparecerán aquí')) {
+1112:                 aiResponse.innerHTML = errorHtml;
+1113:             } else {
+1114:                 aiResponse.innerHTML += errorHtml;
+1115:             }
+1116: 
+1117:             aiResponse.scrollTop = aiResponse.scrollHeight;
+1118:         }
+1119:     }
+1120: 
+1121:     showTokenWarning(remaining) {
+1122:         const aiResponse = document.getElementById('ai-response');
+1123:         if (aiResponse) {
+1124:             const warningHtml = `
+1125:                 <div class="mb-3 p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
+1126:                     <div class="text-xs text-yellow-600 mb-1">⚠️ Advertencia</div>
+1127:                     <div class="text-yellow-700 text-sm">Te quedan solo ${remaining} consultas. Úsalas sabiamente.</div>
+1128:                 </div>
+1129:             `;
+1130:             aiResponse.innerHTML += warningHtml;
+1131:             aiResponse.scrollTop = aiResponse.scrollHeight;
+1132:         }
+1133:     }
+1134: 
+1135:     showExerciseSuccess(message) {
+1136:         const exerciseContent = document.getElementById('exercise-content');
+1137:         if (exerciseContent) {
+1138:             const successMsg = document.createElement('div');
+1139:             successMsg.className = 'text-xs text-green-600 mt-1';
+1140:             successMsg.textContent = message;
+1141: 
+1142:             exerciseContent.appendChild(successMsg);
+1143: 
+1144:             setTimeout(() => {
+1145:                 if (successMsg.parentNode) {
+1146:                     successMsg.parentNode.removeChild(successMsg);
+1147:                 }
+1148:             }, 3000);
+1149:         }
+1150:     }
+1151:     // Utility functions
+1152:     addToHistory(query, response) {
+1153:         this.responseHistory.push({
+1154:             timestamp: new Date(),
+1155:             query: query,
+1156:             response: response
+1157:         });
+1158: 
+1159:         if (this.responseHistory.length > 10) {
+1160:             this.responseHistory = this.responseHistory.slice(-10);
+1161:         }
+1162:     }
+1163: 
+1164:     getErrorMessage(status, errorData) {
+1165:         switch (status) {
+1166:             case 400: return 'Solicitud inválida. Verifica que hayas dibujado algo en la pizarra.';
+1167:             case 401: return 'Error de autenticación. El backend no pudo validar la solicitud.';
+1168:             case 403: return 'Acceso denegado. El backend no tiene permisos para acceder a la API.';
+1169:             case 429: return 'Has superado el límite de solicitudes. Intenta de nuevo en unos minutos.';
+1170:             case 500: return 'Error interno del servidor. Intenta de nuevo más tarde.';
+1171:             default:
+1172:                 if (errorData.error && errorData.error.message) {
+1173:                     return errorData.error.message;
+1174:                 }
+1175:                 return 'No se pudo generar una respuesta. Intenta de nuevo.';
+1176:         }
+1177:     }
+1178: 
+1179:     getHistory() {
+1180:         return this.responseHistory;
+1181:     }
+1182: 
+1183:     // Exercise image functionality
+1184:     setupExerciseImagePaste() {
+1185:         const exerciseContent = document.getElementById('exercise-content');
+1186:         const exerciseInput = document.getElementById('exercise-input');
+1187: 
+1188:         if (!exerciseContent || !exerciseInput) return;
+1189: 
+1190:         exerciseContent.addEventListener('paste', (e) => {
+1191:             e.preventDefault();
+1192: 
+1193:             const items = e.clipboardData.items;
+1194:             let hasImage = false;
+1195: 
+1196:             for (let item of items) {
+1197:                 if (item.type.indexOf('image') !== -1) {
+1198:                     hasImage = true;
+1199:                     const file = item.getAsFile();
+1200:                     this.handleExerciseImagePaste(file);
+1201:                     break;
+1202:                 }
+1203:             }
+1204: 
+1205:             if (!hasImage) {
+1206:                 const text = e.clipboardData.getData('text/plain');
+1207:                 if (text) {
+1208:                     const start = exerciseInput.selectionStart;
+1209:                     const end = exerciseInput.selectionEnd;
+1210:                     const currentText = exerciseInput.value;
+1211: 
+1212:                     exerciseInput.value = currentText.substring(0, start) + text + currentText.substring(end);
+1213:                     exerciseInput.selectionStart = exerciseInput.selectionEnd = start + text.length;
+1214:                     exerciseInput.focus();
+1215:                 }
+1216:             }
+1217:         });
+1218: 
+1219:         const removeImageBtn = document.getElementById('remove-exercise-image');
+1220:         if (removeImageBtn) {
+1221:             removeImageBtn.addEventListener('click', () => {
+1222:                 this.removeExerciseImage();
+1223:             });
+1224:         }
+1225:     }
+1226:     handleExerciseImagePaste(file) {
+1227:         if (!file || !file.type.startsWith('image/')) {
+1228:             this.showError('Por favor, pega una imagen válida.');
+1229:             return;
+1230:         }
+1231: 
+1232:         if (file.size > 5 * 1024 * 1024) {
+1233:             this.showError('La imagen es demasiado grande. Máximo 5MB.');
+1234:             return;
+1235:         }
+1236: 
+1237:         const reader = new FileReader();
+1238:         reader.onload = (e) => {
+1239:             const imageContainer = document.getElementById('exercise-image-container');
+1240:             const exerciseImage = document.getElementById('exercise-image');
+1241: 
+1242:             if (exerciseImage && imageContainer) {
+1243:                 exerciseImage.src = e.target.result;
+1244:                 imageContainer.classList.remove('hidden');
+1245:                 this.exerciseImageData = e.target.result;
+1246:                 this.showExerciseImageSuccess();
+1247:             }
+1248:         };
+1249: 
+1250:         reader.onerror = () => {
+1251:             this.showError('Error al cargar la imagen.');
+1252:         };
+1253: 
+1254:         reader.readAsDataURL(file);
+1255:     }
+1256: 
+1257:     removeExerciseImage() {
+1258:         const imageContainer = document.getElementById('exercise-image-container');
+1259:         const exerciseImage = document.getElementById('exercise-image');
+1260: 
+1261:         if (imageContainer && exerciseImage) {
+1262:             imageContainer.classList.add('hidden');
+1263:             exerciseImage.src = '';
+1264:             this.exerciseImageData = null;
+1265:         }
+1266:     }
+1267: 
+1268:     showExerciseImageSuccess() {
+1269:         const exerciseContent = document.getElementById('exercise-content');
+1270:         if (exerciseContent) {
+1271:             const successMsg = document.createElement('div');
+1272:             successMsg.className = 'text-xs text-green-600 mt-1';
+1273:             successMsg.textContent = '✅ Imagen pegada correctamente';
+1274: 
+1275:             exerciseContent.appendChild(successMsg);
+1276: 
+1277:             setTimeout(() => {
+1278:                 if (successMsg.parentNode) {
+1279:                     successMsg.parentNode.removeChild(successMsg);
+1280:                 }
+1281:             }, 3000);
+1282:         }
+1283:     }
+1284: 
+1285:     getExerciseImageData() {
+1286:         if (this.exerciseImageData) {
+1287:             return this.exerciseImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+1288:         }
+1289:         return null;
+1290:     }
+1291: 
+1292:     // Content blocking system methods
+1293:     initializeContentBlocking() {
+1294:         console.log('🔒 Initializing content blocking system');
+1295:         this.updateContentBlockState();
+1296:     }
+1297: 
+1298:     setupExerciseValidation() {
+1299:         // Monitor text input
+1300:         const exerciseInput = document.getElementById('exercise-input');
+1301:         if (exerciseInput) {
+1302:             exerciseInput.addEventListener('input', () => {
+1303:                 this.exerciseText = exerciseInput.value.trim();
+1304:                 this.validateAndUpdateBlocking();
+1305:             });
+1306:         }
+1307: 
+1308:         // Monitor image uploads/paste
+1309:         const exerciseImageContainer = document.getElementById('exercise-image-container');
+1310:         if (exerciseImageContainer) {
+1311:             const observer = new MutationObserver(() => {
+1312:                 const hasImage = !exerciseImageContainer.classList.contains('hidden');
+1313:                 this.exerciseImage = hasImage;
+1314:                 this.validateAndUpdateBlocking();
+1315:             });
+1316:             observer.observe(exerciseImageContainer, { attributes: true, attributeFilter: ['class'] });
+1317:         }
+1318: 
+1319:         // Monitor clear exercise button
+1320:         const clearExercise = document.getElementById('clear-exercise');
+1321:         if (clearExercise) {
+1322:             clearExercise.addEventListener('click', () => {
+1323:                 setTimeout(() => {
+1324:                     this.exerciseText = '';
+1325:                     this.exerciseImage = null;
+1326:                     this.validateAndUpdateBlocking();
+1327:                 }, 100);
+1328:             });
+1329:         }
+1330:     }
+1331: 
+1332:     validateAndUpdateBlocking() {
+1333:         const hasExerciseText = this.exerciseText.length > 0;
+1334:         const hasExerciseImage = this.exerciseImage;
+1335:         
+1336:         // Content is blocked if there's no exercise text AND no exercise image
+1337:         this.isContentBlocked = !hasExerciseText && !hasExerciseImage;
+1338:         
+1339:         console.log('📝 Exercise validation:', {
+1340:             hasText: hasExerciseText,
+1341:             hasImage: hasExerciseImage,
+1342:             isBlocked: this.isContentBlocked
+1343:         });
+1344: 
+1345:         this.updateContentBlockState();
+1346:     }
+1347: 
+1348:     updateContentBlockState() {
+1349:         // Update canvas blocking
+1350:         const canvasMain = document.getElementById('canvas-main');
+1351:         const canvasBlockOverlay = document.getElementById('canvas-block-overlay');
+1352:         
+1353:         if (canvasMain && canvasBlockOverlay) {
+1354:             if (this.isContentBlocked) {
+1355:                 canvasMain.classList.add('canvas-blocked');
+1356:                 canvasBlockOverlay.classList.add('active');
+1357:             } else {
+1358:                 canvasMain.classList.remove('canvas-blocked');
+1359:                 canvasBlockOverlay.classList.remove('active');
+1360:             }
+1361:         }
+1362: 
+1363:         // Update controls blocking
+1364:         const canvasControls = document.getElementById('canvas-controls');
+1365:         if (canvasControls) {
+1366:             if (this.isContentBlocked) {
+1367:                 canvasControls.classList.add('controls-blocked');
+1368:             } else {
+1369:                 canvasControls.classList.remove('controls-blocked');
+1370:             }
+1371:         }
+1372: 
+1373:         // Update help blocking
+1374:         const helpSection = document.getElementById('help-section');
+1375:         if (helpSection) {
+1376:             if (this.isContentBlocked) {
+1377:                 helpSection.classList.add('help-blocked');
+1378:             } else {
+1379:                 helpSection.classList.remove('help-blocked');
+1380:             }
+1381:         }
+1382: 
+1383:         // Disable whiteboard if blocked
+1384:         if (this.whiteboard) {
+1385:             if (this.isContentBlocked) {
+1386:                 this.whiteboard.canvas.style.pointerEvents = 'none';
+1387:             } else {
+1388:                 this.whiteboard.canvas.style.pointerEvents = 'auto';
+1389:             }
+1390:         }
+1391: 
+1392:         console.log('🔄 Content block state updated:', this.isContentBlocked ? 'BLOCKED' : 'UNBLOCKED');
+1393:     }
+1394: }
+1395: 
+1396: // Initialize TutorIA application
+1397: const tutorIA = new TutorIA();
+1398: 
+1399: // Make it globally available for debugging
+1400: window.tutorIA = tutorIA;
+1401: 
+1402: // Initialize application when DOM is loaded
+1403: document.addEventListener('DOMContentLoaded', () => {
+1404:     console.log('✅ TutorIA initialized successfully.');
+1405: 
+1406:     setTimeout(() => {
+1407:         const aiResponse = document.getElementById('ai-response');
+1408:         if (aiResponse && aiResponse.innerHTML.includes('Las respuestas de la IA aparecerán aquí')) {
+1409:             aiResponse.innerHTML = `
+1410:                 <div class="text-green-600 text-xs mb-2 p-2 bg-green-50 rounded border-l-4 border-green-400">
+1411:                     <strong>✅ TutorIA Listo para Ayudar</strong><br>
+1412:                     Sistema de tutorías inteligente activado.
+1413:                 </div>
+1414:                 <div class="text-gray-600 text-xs">
+1415:                     <strong>Instrucciones:</strong><br>
+1416:                     1. Escribe tu ejercicio en el área de texto.<br>
+1417:                     2. Dibuja tu solución en la pizarra.<br>
+1418:                     3. Usa el botón "🆘 Ayuda" para obtener asistencia.<br>
+1419:                     4. Haz preguntas directas en el campo de consulta.
+1420:                 </div>
+1421:             `;
+1422:         }
+1423:     }, 500);
+1424: });
+1425: 
+1426: console.log('✅ TutorIA application initialized successfully!');

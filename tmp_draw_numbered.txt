@@ -1,0 +1,338 @@
+   1: class Whiteboard {
+   2:     constructor(canvasId, cursorId) {
+   3:         console.log('🎨 Initializing Whiteboard with canvasId:', canvasId);
+   4:         this.canvas = document.getElementById(canvasId);
+   5:         console.log('🎨 Canvas element:', this.canvas);
+   6:         
+   7:         if (!this.canvas) {
+   8:             console.error('❌ Canvas element not found!');
+   9:             return;
+  10:         }
+  11:         
+  12:         this.context = this.canvas.getContext('2d');
+  13:         console.log('🎨 Canvas context:', this.context);
+  14:         
+  15:         // Configure canvas for optimal stylus/touch performance
+  16:         this.canvas.style.touchAction = 'none';
+  17:         
+  18:         this.eraserCursor = document.getElementById(cursorId);
+  19:         this.isDrawing = false;
+  20:         this.mode = 'pen'; // 'pen' or 'eraser'
+  21:         this.brushSize = 5;
+  22:         this.history = [];
+  23:         this.historyIndex = -1;
+  24: 
+  25:         this.resizeCanvas();
+  26:         this.bindEvents();
+  27:         this.saveState(); // Guardar el estado inicial en blanco
+  28:         
+  29:         console.log('✅ Whiteboard initialized successfully');
+  30:     }
+  31: 
+  32:     bindEvents() {
+  33:         console.log('🎯 Binding events to canvas');
+  34:         window.addEventListener('resize', () => this.resizeCanvas());
+  35:         
+  36:         // Modern pointer events (supports mouse, pen, touch)
+  37:         if ('PointerEvent' in window) {
+  38:             console.log('🎯 Using Pointer Events API');
+  39:             this.canvas.addEventListener('pointerdown', (e) => this.handlePointerStart(e));
+  40:             this.canvas.addEventListener('pointermove', (e) => this.handlePointerMove(e));
+  41:             this.canvas.addEventListener('pointerup', (e) => this.handlePointerEnd(e));
+  42:             this.canvas.addEventListener('pointerleave', (e) => this.handlePointerLeave(e));
+  43:             this.canvas.addEventListener('pointerenter', (e) => this.handlePointerEnter(e));
+  44:         } else {
+  45:             // Fallback to mouse and touch events for older browsers
+  46:             console.log('🎯 Using fallback mouse/touch events');
+  47:             
+  48:             // Mouse events
+  49:             this.canvas.addEventListener('mousedown', (e) => this.handlePointerStart(e));
+  50:             this.canvas.addEventListener('mousemove', (e) => this.handlePointerMove(e));
+  51:             this.canvas.addEventListener('mouseup', (e) => this.handlePointerEnd(e));
+  52:             this.canvas.addEventListener('mouseleave', (e) => this.handlePointerLeave(e));
+  53:             this.canvas.addEventListener('mouseenter', (e) => this.handlePointerEnter(e));
+  54:             
+  55:             // Touch events for mobile/tablet
+  56:             this.canvas.addEventListener('touchstart', (e) => {
+  57:                 e.preventDefault();
+  58:                 if (e.touches.length === 1) {
+  59:                     this.handlePointerStart(this.createEventFromTouch(e.touches[0], e));
+  60:                 }
+  61:             });
+  62:             this.canvas.addEventListener('touchmove', (e) => {
+  63:                 e.preventDefault();
+  64:                 if (e.touches.length === 1) {
+  65:                     this.handlePointerMove(this.createEventFromTouch(e.touches[0], e));
+  66:                 }
+  67:             });
+  68:             this.canvas.addEventListener('touchend', (e) => {
+  69:                 e.preventDefault();
+  70:                 this.handlePointerEnd(e);
+  71:             });
+  72:         }
+  73:         
+  74:         console.log('✅ Events bound successfully');
+  75:     }
+  76: 
+  77:     // Unified pointer event handlers
+  78:     handlePointerStart(e) {
+  79:         const coords = this.getEventCoordinates(e);
+  80:         const inputType = this.getInputType(e);
+  81:         
+  82:         console.log(`🎯 ${inputType} down at:`, coords.x, coords.y);
+  83:         
+  84:         // Prevent default to avoid scrolling on touch devices
+  85:         if (e.preventDefault) e.preventDefault();
+  86:         
+  87:         this.startDrawing(coords);
+  88:     }
+  89: 
+  90:     handlePointerMove(e) {
+  91:         const coords = this.getEventCoordinates(e);
+  92:         
+  93:         // Update eraser cursor position
+  94:         if (this.mode === 'eraser' && this.eraserCursor) {
+  95:             this.eraserCursor.style.left = `${e.clientX}px`;
+  96:             this.eraserCursor.style.top = `${e.clientY}px`;
+  97:         }
+  98:         
+  99:         this.draw(coords);
+ 100:     }
+ 101: 
+ 102:     handlePointerEnd(e) {
+ 103:         const inputType = this.getInputType(e);
+ 104:         console.log(`🎯 ${inputType} up`);
+ 105:         
+ 106:         this.stopDrawing();
+ 107:     }
+ 108: 
+ 109:     handlePointerLeave(e) {
+ 110:         this.isDrawing = false;
+ 111:         if (this.eraserCursor) this.eraserCursor.style.display = 'none';
+ 112:     }
+ 113: 
+ 114:     handlePointerEnter(e) {
+ 115:         if (this.mode === 'eraser' && this.eraserCursor) {
+ 116:             this.eraserCursor.style.display = 'block';
+ 117:         }
+ 118:     }
+ 119: 
+ 120:     // Get normalized coordinates from any event type
+ 121:     getEventCoordinates(e) {
+ 122:         const rect = this.canvas.getBoundingClientRect();
+ 123:         
+ 124:         // Handle different event types
+ 125:         let clientX, clientY;
+ 126:         
+ 127:         if (e.touches && e.touches.length > 0) {
+ 128:             // Touch event
+ 129:             clientX = e.touches[0].clientX;
+ 130:             clientY = e.touches[0].clientY;
+ 131:         } else {
+ 132:             // Mouse or pointer event
+ 133:             clientX = e.clientX;
+ 134:             clientY = e.clientY;
+ 135:         }
+ 136:         
+ 137:         return {
+ 138:             x: clientX - rect.left,
+ 139:             y: clientY - rect.top
+ 140:         };
+ 141:     }
+ 142: 
+ 143:     // Get input type for debugging
+ 144:     getInputType(e) {
+ 145:         if (e.pointerType) {
+ 146:             return e.pointerType; // 'mouse', 'pen', 'touch'
+ 147:         } else if (e.type && e.type.startsWith('touch')) {
+ 148:             return 'touch';
+ 149:         } else {
+ 150:             return 'mouse';
+ 151:         }
+ 152:     }
+ 153: 
+ 154:     // Create normalized event from touch for fallback
+ 155:     createEventFromTouch(touch, originalEvent) {
+ 156:         return {
+ 157:             clientX: touch.clientX,
+ 158:             clientY: touch.clientY,
+ 159:             preventDefault: () => originalEvent.preventDefault(),
+ 160:             type: 'touch'
+ 161:         };
+ 162:     }
+ 163: 
+ 164:     resizeCanvas() {
+ 165:         const parent = this.canvas.parentElement;
+ 166:         this.canvas.width = parent.clientWidth;
+ 167:         this.canvas.height = parent.clientHeight;
+ 168:         this.redrawHistory(); // Redibujar el contenido al cambiar el tamaño
+ 169:     }
+ 170: 
+ 171:     setMode(newMode) {
+ 172:         this.mode = newMode;
+ 173:         if (this.mode === 'pen') {
+ 174:             this.canvas.style.cursor = 'crosshair';
+ 175:             if (this.eraserCursor) this.eraserCursor.style.display = 'none';
+ 176:         } else if (this.mode === 'eraser') {
+ 177:             this.canvas.style.cursor = 'none'; // Ocultar cursor por defecto
+ 178:         }
+ 179:     }
+ 180: 
+ 181:     setBrushSize(size) {
+ 182:         this.brushSize = size;
+ 183:         if (this.mode === 'eraser' && this.eraserCursor) {
+ 184:             this.eraserCursor.style.width = `${size}px`;
+ 185:             this.eraserCursor.style.height = `${size}px`;
+ 186:             this.eraserCursor.style.marginLeft = `-${size/2}px`;
+ 187:             this.eraserCursor.style.marginTop = `-${size/2}px`;
+ 188:         }
+ 189:     }
+ 190: 
+ 191:     startDrawing(coords) {
+ 192:         console.log('🖱️ Start drawing at:', coords.x, coords.y);
+ 193:         this.isDrawing = true;
+ 194:         this.context.beginPath();
+ 195:         this.context.moveTo(coords.x, coords.y);
+ 196:     }
+ 197: 
+ 198:     stopDrawing() {
+ 199:         if (this.isDrawing) {
+ 200:             this.isDrawing = false;
+ 201:             this.context.closePath();
+ 202:             this.saveState(); // Guardar estado después de un trazo
+ 203:         }
+ 204:     }
+ 205: 
+ 206:     draw(coords) {
+ 207:         if (!this.isDrawing) return;
+ 208: 
+ 209:         // Tamaño estático pequeño para el lápiz, tamaño variable para el borrador
+ 210:         this.context.lineWidth = this.mode === 'pen' ? 2 : this.brushSize;
+ 211:         this.context.lineCap = 'round';
+ 212:         this.context.strokeStyle = this.mode === 'pen' ? '#000000' : '#FFFFFF'; // Blanco para borrar
+ 213:         this.context.globalCompositeOperation = this.mode === 'pen' ? 'source-over' : 'destination-out';
+ 214: 
+ 215:         this.context.lineTo(coords.x, coords.y);
+ 216:         this.context.stroke();
+ 217:     }
+ 218:     
+ 219:     saveState() {
+ 220:         // Remove any redo history when a new action is performed
+ 221:         this.history = this.history.slice(0, this.historyIndex + 1);
+ 222:         
+ 223:         if (this.history.length > 20) { // Limitar el historial
+ 224:             this.history.shift();
+ 225:         } else {
+ 226:             this.historyIndex++;
+ 227:         }
+ 228:         this.history.push(this.context.getImageData(0, 0, this.canvas.width, this.canvas.height));
+ 229:     }
+ 230:     
+ 231:     undo() {
+ 232:         if (this.historyIndex > 0) {
+ 233:             this.historyIndex--;
+ 234:             const previousState = this.history[this.historyIndex];
+ 235:             this.context.putImageData(previousState, 0, 0);
+ 236:             return true;
+ 237:         } else if (this.historyIndex === 0) {
+ 238:             // Go to initial blank state
+ 239:             this.historyIndex = -1;
+ 240:             this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+ 241:             return true;
+ 242:         }
+ 243:         return false;
+ 244:     }
+ 245:     
+ 246:     redo() {
+ 247:         if (this.historyIndex < this.history.length - 1) {
+ 248:             this.historyIndex++;
+ 249:             const nextState = this.history[this.historyIndex];
+ 250:             this.context.putImageData(nextState, 0, 0);
+ 251:             return true;
+ 252:         }
+ 253:         return false;
+ 254:     }
+ 255:     
+ 256:     clearCanvas(save = true) {
+ 257:         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+ 258:         this.history = []; // Limpiar historial
+ 259:         this.historyIndex = -1;
+ 260:         if (save) {
+ 261:             this.saveState(); // Guardar el estado en blanco como inicial
+ 262:         }
+ 263:     }
+ 264:     
+ 265:     redrawHistory() {
+ 266:         if (this.history.length > 0) {
+ 267:             this.context.putImageData(this.history[this.history.length - 1], 0, 0);
+ 268:         }
+ 269:     }
+ 270: 
+ 271:     getCanvasImageData() {
+ 272:         // Debug: Log canvas state
+ 273:         console.log('🔍 Canvas capture - Width:', this.canvas.width, 'Height:', this.canvas.height);
+ 274:         
+ 275:         // Crear un canvas más pequeño para reducir el tamaño de la imagen
+ 276:         const tempCanvas = document.createElement('canvas');
+ 277:         const tempCtx = tempCanvas.getContext('2d');
+ 278:         
+ 279:         // Reducir el tamaño a 800x600 máximo
+ 280:         const maxWidth = 800;
+ 281:         const maxHeight = 600;
+ 282:         const scale = Math.min(maxWidth / this.canvas.width, maxHeight / this.canvas.height, 1);
+ 283:         
+ 284:         tempCanvas.width = this.canvas.width * scale;
+ 285:         tempCanvas.height = this.canvas.height * scale;
+ 286:         
+ 287:         // Establecer fondo blanco antes de dibujar
+ 288:         tempCtx.fillStyle = 'white';
+ 289:         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+ 290:         
+ 291:         // Dibujar la imagen escalada
+ 292:         tempCtx.drawImage(this.canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+ 293:         
+ 294:         console.log('🔍 Canvas capture - Temp canvas size:', tempCanvas.width, 'x', tempCanvas.height);
+ 295:         
+ 296:         // Convertir a JPEG con calidad reducida para menor tamaño
+ 297:         return tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+ 298:     }
+ 299:     
+ 300:     isEmpty() {
+ 301:         try {
+ 302:             // If we have history, check if we have more than just the initial blank state
+ 303:             if (this.history.length > 1) {
+ 304:                 console.log('🔍 isEmpty() check - Has history:', this.history.length, 'states');
+ 305:                 return false; // We have drawn something if there's more than initial state
+ 306:             }
+ 307: 
+ 308:             // Check pixel data as fallback
+ 309:             const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+ 310:             
+ 311:             // Check for any non-transparent pixels (alpha > 0) or non-white pixels
+ 312:             for (let i = 0; i < imageData.data.length; i += 4) {
+ 313:                 const r = imageData.data[i];     // Red
+ 314:                 const g = imageData.data[i + 1]; // Green
+ 315:                 const b = imageData.data[i + 2]; // Blue
+ 316:                 const a = imageData.data[i + 3]; // Alpha
+ 317:                 
+ 318:                 // If we find any pixel that is not transparent and not white, canvas is not empty
+ 319:                 if (a > 0 && (r !== 255 || g !== 255 || b !== 255)) {
+ 320:                     console.log('🔍 isEmpty() check - Found non-white pixel');
+ 321:                     return false;
+ 322:                 }
+ 323:             }
+ 324:             
+ 325:             console.log('🔍 isEmpty() check - Canvas is empty (all white/transparent pixels)');
+ 326:             return true;
+ 327:         } catch (error) {
+ 328:             console.error('❌ Error in isEmpty():', error);
+ 329:             return false; // If error, assume it's not empty to be safe
+ 330:         }
+ 331:     }
+ 332: }
+ 333: 
+ 334: // Export the Whiteboard class for use by main.js
+ 335: export { Whiteboard };
+ 336: 
+ 337: // No DOMContentLoaded listener here - main.js will handle initialization
+

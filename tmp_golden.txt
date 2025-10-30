@@ -1,0 +1,249 @@
+   1: // Golden Dataset Creation for Prompt Optimization
+   2: // Collect and curate high-quality interaction examples
+   3: 
+   4: class GoldenDataset {
+   5:     constructor() {
+   6:         this.examples = [];
+   7:         this.categories = {
+   8:             'concept_explanation': [],
+   9:             'step_by_step_guidance': [],
+  10:             'error_correction': [],
+  11:             'encouraging_stuck_student': [],
+  12:             'visual_analysis': [],
+  13:             'algorithm_walkthrough': []
+  14:         };
+  15:     }
+  16: 
+  17:     // Add a golden example with metadata
+  18:     addGoldenExample(example) {
+  19:         const goldenExample = {
+  20:             id: this.generateId(),
+  21:             timestamp: Date.now(),
+  22:             category: example.category,
+  23:             studentContext: {
+  24:                 query: example.studentQuery,
+  25:                 drawingPresent: example.hasDrawing,
+  26:                 previousAttempts: example.attemptNumber || 1,
+  27:                 strugglingIndicators: example.strugglingIndicators || [],
+  28:                 skillLevel: example.skillLevel || 'unknown'
+  29:             },
+  30:             aiResponse: example.aiResponse,
+  31:             outcome: {
+  32:                 studentSatisfaction: example.satisfaction, // 1-5 scale
+  33:                 followUpSuccess: example.followUpSuccess, // boolean
+  34:                 learningEvidence: example.learningEvidence, // what student did after
+  35:                 timeToNextSuccess: example.timeToNextSuccess // minutes
+  36:             },
+  37:             promptUsed: example.promptUsed,
+  38:             metrics: {
+  39:                 responseLength: example.aiResponse.length,
+  40:                 questionCount: this.countQuestions(example.aiResponse),
+  41:                 exampleCount: this.countExamples(example.aiResponse),
+  42:                 encouragementLevel: this.analyzeEncouragement(example.aiResponse)
+  43:             },
+  44:             tags: example.tags || []
+  45:         };
+  46: 
+  47:         this.examples.push(goldenExample);
+  48:         this.categories[example.category].push(goldenExample);
+  49:         
+  50:         console.log('🏆 Golden example added:', goldenExample.id);
+  51:         return goldenExample.id;
+  52:     }
+  53: 
+  54:     generateId() {
+  55:         // Use cryptographically strong randomness when available
+  56:         const getSecureRandomHex = (bytes = 8) => {
+  57:             if (globalThis.crypto && globalThis.crypto.getRandomValues) {
+  58:                 const arr = new Uint8Array(bytes);
+  59:                 globalThis.crypto.getRandomValues(arr);
+  60:                 return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+  61:             }
+  62:             // Fallback without Math.random to satisfy security rule; ensure low collision risk
+  63:             const now = Date.now().toString(16);
+  64:             const counter = (this._idCounter = (this._idCounter || 0) + 1).toString(16);
+  65:             return (now + counter).slice(-bytes * 2).padStart(bytes * 2, '0');
+  66:         };
+  67: 
+  68:         return 'golden_' + Date.now().toString(36) + getSecureRandomHex(8);
+  69:     }
+  70: 
+  71:     countQuestions(text) {
+  72:         return (text.match(/\?/g) || []).length;
+  73:     }
+  74: 
+  75:     countExamples(text) {
+  76:         const exampleIndicators = ['for example', 'e.g.', 'such as', 'like when', 'imagine'];
+  77:         return exampleIndicators.reduce((count, indicator) => {
+  78:             return count + (text.toLowerCase().split(indicator).length - 1);
+  79:         }, 0);
+  80:     }
+  81: 
+  82:     analyzeEncouragement(text) {
+  83:         const encouragementWords = [
+  84:             'great', 'good', 'excellent', 'well done', 'nice work', 'keep going',
+  85:             'you can do', 'almost there', 'good thinking', 'right idea'
+  86:         ];
+  87:         
+  88:         const matches = encouragementWords.filter(word => 
+  89:             text.toLowerCase().includes(word)
+  90:         );
+  91:         
+  92:         return matches.length;
+  93:     }
+  94: 
+  95:     // Get examples for prompt engineering
+  96:     getExamplesForPrompt(category, count = 3) {
+  97:         const categoryExamples = this.categories[category] || [];
+  98:         
+  99:         // Sort by outcome quality (satisfaction * follow-up success)
+ 100:         const sortedExamples = categoryExamples
+ 101:             .filter(ex => ex.outcome.studentSatisfaction >= 4)
+ 102:             .sort((a, b) => {
+ 103:                 const scoreA = a.outcome.studentSatisfaction * (a.outcome.followUpSuccess ? 2 : 1);
+ 104:                 const scoreB = b.outcome.studentSatisfaction * (b.outcome.followUpSuccess ? 2 : 1);
+ 105:                 return scoreB - scoreA;
+ 106:             });
+ 107: 
+ 108:         return sortedExamples.slice(0, count).map(ex => ({
+ 109:             studentQuery: ex.studentContext.query,
+ 110:             goldenResponse: ex.aiResponse,
+ 111:             context: ex.studentContext,
+ 112:             whyItWorked: this.analyzeWhyItWorked(ex)
+ 113:         }));
+ 114:     }
+ 115: 
+ 116:     analyzeWhyItWorked(example) {
+ 117:         const analysis = [];
+ 118:         
+ 119:         if (example.metrics.questionCount > 0) {
+ 120:             analysis.push('Used guiding questions effectively');
+ 121:         }
+ 122:         
+ 123:         if (example.metrics.exampleCount > 0) {
+ 124:             analysis.push('Provided concrete examples');
+ 125:         }
+ 126:         
+ 127:         if (example.metrics.encouragementLevel > 0) {
+ 128:             analysis.push('Included encouraging language');
+ 129:         }
+ 130:         
+ 131:         if (example.outcome.followUpSuccess) {
+ 132:             analysis.push('Led to successful follow-up engagement');
+ 133:         }
+ 134: 
+ 135:         const lengthCategory = example.metrics.responseLength < 100 ? 'concise' :
+ 136:                              example.metrics.responseLength < 200 ? 'moderate' : 'detailed';
+ 137:         analysis.push(`Optimal response length (${lengthCategory})`);
+ 138:         
+ 139:         return analysis;
+ 140:     }
+ 141: 
+ 142:     // Generate prompt templates from golden examples
+ 143:     generatePromptTemplate(category) {
+ 144:         const examples = this.getExamplesForPrompt(category, 5);
+ 145:         if (examples.length === 0) return null;
+ 146: 
+ 147:         const commonPatterns = this.extractCommonPatterns(examples);
+ 148:         
+ 149:         const template = {
+ 150:             category: category,
+ 151:             description: `Optimized prompt for ${category} based on ${examples.length} golden examples`,
+ 152:             structure: commonPatterns.structure,
+ 153:             keyPhrases: commonPatterns.keyPhrases,
+ 154:             dosList: commonPatterns.dosList,
+ 155:             dontsList: commonPatterns.dontsList,
+ 156:             examples: examples.slice(0, 2), // Include top 2 examples
+ 157:             promptTemplate: this.buildPromptTemplate(commonPatterns, category)
+ 158:         };
+ 159: 
+ 160:         console.log(`📝 Generated prompt template for ${category}:`, template);
+ 161:         return template;
+ 162:     }
+ 163: 
+ 164:     extractCommonPatterns(examples) {
+ 165:         const patterns = {
+ 166:             structure: [],
+ 167:             keyPhrases: [],
+ 168:             dosList: [],
+ 169:             dontsList: []
+ 170:         };
+ 171: 
+ 172:         // Analyze response structures
+ 173:         examples.forEach(ex => {
+ 174:             const response = ex.goldenResponse;
+ 175:             
+ 176:             // Common opening patterns
+ 177:             if (response.toLowerCase().startsWith('let me help')) {
+ 178:                 patterns.keyPhrases.push('Supportive opening');
+ 179:             }
+ 180:             
+ 181:             // Question patterns
+ 182:             if (ex.whyItWorked.includes('Used guiding questions effectively')) {
+ 183:                 patterns.dosList.push('Use guiding questions to promote discovery');
+ 184:             }
+ 185:             
+ 186:             // Example usage
+ 187:             if (ex.whyItWorked.includes('Provided concrete examples')) {
+ 188:                 patterns.dosList.push('Include concrete, relevant examples');
+ 189:             }
+ 190:         });
+ 191: 
+ 192:         return patterns;
+ 193:     }
+ 194: 
+ 195:     buildPromptTemplate(patterns, category) {
+ 196:         let template = `You are an AI tutor helping students with algorithmic thinking and problem-solving.\n\n`;
+ 197:         
+ 198:         template += `CONTEXT: Student is asking for help with ${category}.\n\n`;
+ 199:         
+ 200:         template += `GUIDELINES:\n`;
+ 201:         patterns.dosList.forEach((item, index) => {
+ 202:             template += `${index + 1}. ${item}\n`;
+ 203:         });
+ 204:         
+ 205:         if (patterns.dontsList.length > 0) {
+ 206:             template += `\nAVOID:\n`;
+ 207:             patterns.dontsList.forEach((item, index) => {
+ 208:                 template += `- ${item}\n`;
+ 209:             });
+ 210:         }
+ 211:         
+ 212:         template += `\nYour response should be helpful, encouraging, and promote learning through understanding rather than rote memorization.\n`;
+ 213:         
+ 214:         return template;
+ 215:     }
+ 216: 
+ 217:     // Export dataset for external analysis
+ 218:     exportDataset() {
+ 219:         return {
+ 220:             metadata: {
+ 221:                 totalExamples: this.examples.length,
+ 222:                 categories: Object.keys(this.categories).map(cat => ({
+ 223:                     name: cat,
+ 224:                     count: this.categories[cat].length
+ 225:                 })),
+ 226:                 exportTimestamp: Date.now()
+ 227:             },
+ 228:             examples: this.examples,
+ 229:             templates: Object.keys(this.categories).map(cat => 
+ 230:                 this.generatePromptTemplate(cat)
+ 231:             ).filter(Boolean)
+ 232:         };
+ 233:     }
+ 234: 
+ 235:     // Import curated examples (for team collaboration)
+ 236:     importExamples(importData) {
+ 237:         importData.examples.forEach(example => {
+ 238:             this.examples.push(example);
+ 239:             if (!this.categories[example.category]) {
+ 240:                 this.categories[example.category] = [];
+ 241:             }
+ 242:             this.categories[example.category].push(example);
+ 243:         });
+ 244:         
+ 245:         console.log(`📥 Imported ${importData.examples.length} golden examples`);
+ 246:     }
+ 247: }
+ 248: 
+ 249: export { GoldenDataset };

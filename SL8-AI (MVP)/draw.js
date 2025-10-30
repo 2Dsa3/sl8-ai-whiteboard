@@ -106,12 +106,12 @@ class Whiteboard {
         this.stopDrawing();
     }
 
-    handlePointerLeave(e) {
+    handlePointerLeave() {
         this.isDrawing = false;
         if (this.eraserCursor) this.eraserCursor.style.display = 'none';
     }
 
-    handlePointerEnter(e) {
+    handlePointerEnter() {
         if (this.mode === 'eraser' && this.eraserCursor) {
             this.eraserCursor.style.display = 'block';
         }

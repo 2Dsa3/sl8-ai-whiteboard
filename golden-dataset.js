@@ -52,7 +52,23 @@ class GoldenDataset {
     }
 
     generateId() {
-        return 'golden_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+        // Use cryptographically strong randomness when available
+        const getSecureRandomHex = (bytes = 8) => {
+            if (globalThis.crypto && globalThis.crypto.getRandomValues) {
+                const arr = new Uint8Array(bytes);
+                globalThis.crypto.getRandomValues(arr);
+                return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+            }
+            // Fallback without Math.random to satisfy security rule; ensure low collision risk
+            const now = Date.now().toString(16);
+            let counterNum = this._idCounter || 0;
+            counterNum += 1;
+            this._idCounter = counterNum;
+            const counter = counterNum.toString(16);
+            return (now + counter).slice(-bytes * 2).padStart(bytes * 2, '0');
+        };
+
+        return 'golden_' + Date.now().toString(36) + getSecureRandomHex(8);
     }
 
     countQuestions(text) {
@@ -119,8 +135,14 @@ class GoldenDataset {
             analysis.push('Led to successful follow-up engagement');
         }
 
-        const lengthCategory = example.metrics.responseLength < 100 ? 'concise' :
-                             example.metrics.responseLength < 200 ? 'moderate' : 'detailed';
+        let lengthCategory;
+        if (example.metrics.responseLength < 100) {
+            lengthCategory = 'concise';
+        } else if (example.metrics.responseLength < 200) {
+            lengthCategory = 'moderate';
+        } else {
+            lengthCategory = 'detailed';
+        }
         analysis.push(`Optimal response length (${lengthCategory})`);
         
         return analysis;
@@ -191,7 +213,7 @@ class GoldenDataset {
         
         if (patterns.dontsList.length > 0) {
             template += `\nAVOID:\n`;
-            patterns.dontsList.forEach((item, index) => {
+            patterns.dontsList.forEach((item) => {
                 template += `- ${item}\n`;
             });
         }

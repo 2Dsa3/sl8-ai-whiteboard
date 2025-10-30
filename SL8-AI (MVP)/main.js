@@ -281,7 +281,14 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
         const tokenCounter = document.getElementById('tokenCounter');
         const remaining = this.getRemainingTokens();
         if (tokenCounter) {
-            const colorClass = remaining <= 5 ? 'text-red-500' : remaining <= 15 ? 'text-yellow-500' : 'text-green-500';
+            let colorClass;
+            if (remaining <= 5) {
+                colorClass = 'text-red-500';
+            } else if (remaining <= 15) {
+                colorClass = 'text-yellow-500';
+            } else {
+                colorClass = 'text-green-500';
+            }
             tokenCounter.innerHTML = `<span class="font-semibold ${colorClass}">🪙 ${remaining}/${this.maxTokens} consultas restantes</span>`;
         }
     }
@@ -737,8 +744,8 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(this.getErrorMessage(response.status, errorData));
                 console.error('Method sendQuery failed:', response.status, errorData);
+                throw new Error(this.getErrorMessage(response.status, errorData));
             }
 
             const data = await response.json();

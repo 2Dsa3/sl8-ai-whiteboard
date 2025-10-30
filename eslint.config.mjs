@@ -15,13 +15,14 @@ export default [
   security.configs.recommended,
   // Project-specific settings and tweaks
   {
-    files: ["**/*.js"],
+    files: ["**/*.js", "**/*.cjs"],
     ignores: [
       "node_modules/**",
       "dist/**",
       "build/**",
       ".vite/**",
       "reports/**",
+      "tmp_**",
     ],
     languageOptions: {
       ecmaVersion: 2022,
@@ -39,10 +40,27 @@ export default [
       "sonarjs/cognitive-complexity": ["warn", 20],
     },
   },
-  // Stronger Node globals for server/tooling files
+  // Node CommonJS scripts
   {
-    files: ["api/**/*.js", "vite.config.js"],
+    files: [
+      "scripts/**/*.cjs",
+      "*.cjs",
+    ],
     languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "commonjs",
+      globals: globals.node,
+    },
+  },
+  // Node ESM config and server files
+  {
+    files: [
+      "api/**/*.js",
+      "vite.config.js",
+    ],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
       globals: globals.node,
     },
   },

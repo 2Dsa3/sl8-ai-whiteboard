@@ -15,15 +15,13 @@ Repository URL: https://github.com/2Dsa3/sl8-ai-whiteboard.git
   - Generate reports (JSON + HTML): `npm run lint:report`
 
 ## Reports (Before and After)
-- Initial (snapshot): `reports/eslint-report.initial.html`, `reports/eslint-report.initial.json`
-- Final (after fixes): `reports/eslint-report.final.html`, `reports/eslint-report.final.json`
+- Initial snapshot (HTML/JSON): `reports/eslint-report.initial.html`, `reports/eslint-report.initial.json`
+- Final snapshot (HTML/JSON): `reports/eslint-report.final.html`, `reports/eslint-report.final.json`
+- Tip: open the HTML files above in a browser and add screenshots to:
+  - `reports/screenshots/initial.png`
+  - `reports/screenshots/final.png`
 
-Screenshots (add images to these paths):
-- `reports/screenshots/initial.png`
-- `reports/screenshots/final.png`
-
-Open the HTML reports in a browser for a clear, sortable view of findings.
-
+Results summary (CLI stylish): final run shows `0 errors, 123 warnings`.
 ## Notable Findings (Initial Scan)
 - sonarjs/no-nested-conditional — `SL8-AI (MVP)/main.js:284` — Nested ternary reduced readability; refactor into if/else.
 - sonarjs/no-gratuitous-expressions — `feedback-collector.js:76` — Expression always truthy; remove redundant sub‑expression.
@@ -42,6 +40,9 @@ Open the HTML reports in a browser for a clear, sortable view of findings.
 - fix(security): Replace `Math.random()` with `crypto.getRandomValues` for ID generation; add deterministic fallback without `Math.random`; refactor nested assignment; simplify nested conditional; remove unused param. File: `golden-dataset.js`.
 - fix(draw): Remove unused event parameters to satisfy `no-unused-vars`. File: `SL8-AI (MVP)/draw.js`.
 - chore(lint): Configure ESLint with SonarJS & Security and add HTML report generator; add Node overrides for scripts and Vite config; avoid PATH dependency in runner.
+ - fix(security): Replace `Math.random()` with crypto‑grade IDs in `analytics.js` and `experiments.js`.
+ - fix(dashboard): Declare global `Chart` (CDN) to satisfy `no-undef`; improve catch blocks to address `sonarjs/no-ignored-exceptions`; keep dashboard instance on `window` to avoid side‑effect‑only constructor warning.
+ - fix(dashboard): Localized disable for `sonarjs/no-nested-conditional` inside one template string with justification (see “Justified rule disables”).
 
 Commits covering the above:
 - `fix(ui): refactor nested ternary for token color; move logging before throw to avoid unreachable code`
@@ -56,10 +57,14 @@ Commits covering the above:
 - Several `security/detect-object-injection` warnings stem from dynamic indexing; can mitigate by whitelisting keys or validating input sources before access.
 - One function exceeds the cognitive complexity threshold and can be refactored into smaller units.
 
+Justified rule disables:
+- `sonarjs/no-nested-conditional` — one localized instance in `dashboard.js` within a UI template string to avoid bloating the view code. A small helper renderer would remove the need for the disable; deferred to a follow‑up.
+
 ## Reflection
 - The static analysis surfaced several maintainability issues (nested ternaries, unreachable code, unused variables) that were easy to miss during feature work. Refactoring improved readability and reduced potential for future defects.
 - The most surprising findings were the number of duplicated strings and the breadth of “object injection” warnings — good prompts to add lightweight key validation and centralize repeated UI strings.
 - Replacing `Math.random()` with crypto-grade randomness was a quick yet meaningful hardening step.
+ - After the second pass, I found that some UI helper code (template strings with ternaries) benefits from small extraction functions to satisfy readability rules without disables. Also, dashboards relying on CDN globals (e.g., Chart.js) need explicit global declarations for static analysis.
 
 ## Configuration Files Included
 - `eslint.config.mjs`
@@ -70,4 +75,3 @@ Commits covering the above:
 1) `npm ci` (or `npm install`)
 2) Run analysis: `npm run lint`
 3) Generate final reports: `npm run lint:report` (outputs to `reports/`)
-

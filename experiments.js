@@ -47,7 +47,17 @@ class PromptExperiments {
     }
 
     generateUserId() {
-        return 'user_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+        const randHex = (bytes = 8) => {
+            if (globalThis.crypto && globalThis.crypto.getRandomValues) {
+                const arr = new Uint8Array(bytes);
+                globalThis.crypto.getRandomValues(arr);
+                return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+            }
+            const now = Date.now().toString(16);
+            this._uidCounter = (this._uidCounter || 0) + 1;
+            return (now + this._uidCounter.toString(16)).slice(-bytes * 2).padStart(bytes * 2, '0');
+        };
+        return 'user_' + Date.now().toString(36) + randHex(8);
     }
 
     selectVariant(userId, experiment) {

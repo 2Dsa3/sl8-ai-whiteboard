@@ -1,3 +1,4 @@
+/* global Chart */
 // Dashboard JavaScript for Analytics
 class AnalyticsDashboard {
     constructor() {
@@ -38,7 +39,7 @@ class AnalyticsDashboard {
                             results.push(data);
                         }
                     } catch (e) {
-                        console.warn('Failed to parse:', storageKey);
+                        console.warn('Failed to parse:', storageKey, e);
                     }
                 }
             }
@@ -47,6 +48,7 @@ class AnalyticsDashboard {
             try {
                 return JSON.parse(localStorage.getItem(key) || '[]');
             } catch (e) {
+                console.warn('Failed to load key:', key, e);
                 return [];
             }
         }
@@ -227,6 +229,7 @@ class AnalyticsDashboard {
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 10);
 
+        /* eslint-disable sonarjs/no-nested-conditional */
         container.innerHTML = recentInteractions.map(interaction => `
             <div class="border-l-4 border-blue-500 pl-4 py-2">
                 <div class="flex justify-between items-start">
@@ -245,6 +248,7 @@ class AnalyticsDashboard {
                 ` : ''}
             </div>
         `).join('');
+        /* eslint-enable sonarjs/no-nested-conditional */
     }
 
     updateTopPrompts() {
@@ -365,5 +369,5 @@ class AnalyticsDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new AnalyticsDashboard();
+    window.analyticsDashboard = new AnalyticsDashboard();
 });

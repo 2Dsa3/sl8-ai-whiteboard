@@ -26,6 +26,7 @@ Este repo empezó como **SL8.ai**, una pizarra con IA para pensamiento algorítm
 SL8-AI (MVP)/         Frontend estático (la app real)
   index.html          UI con Tailwind por CDN, menú de ayuda (help-1 … help-6), panel de respuesta
   main.js             Clase TutorIA: prompts, bloqueo de contenido, tokens, llamadas a /api
+  plantea-primero.js  Paso 1 (foto del ejercicio) y Paso 2 (planteamiento) antes de habilitar la ayuda
   draw.js             Clase Whiteboard: canvas, pointer events, deshacer/rehacer, getCanvasImageData()
   styles.css
 api/
@@ -107,9 +108,9 @@ Está en orden de prioridad y sale del prototipo, del storyboard y del feedback 
 
 1. **Rebranding:** cambiar "SL8 - AI" y "TutorIA" por "Pizarra IA" en `<title>`, encabezados, textos y prompts. Actualizar el README.
 2. **Prompts para Matemática y Física:** hoy los prompts de `tutorPrompts` en `main.js` hablan de programación y algoritmos. Hay que reescribirlos para ejercicios de bachillerato y universidad (álgebra, cálculo, física), manteniendo el estilo socrático. Los modos `stuck`, `hint`, `clarify`, `next_step`, `verify` y `solution` se mantienen.
-3. **"Plantea primero" real:** hoy solo se bloquea hasta que hay un ejercicio. Falta exigir además un planteamiento propio antes de habilitar `help-1…help-6`, ya sea un trazo en la pizarra (`!whiteboard.isEmpty()`) o un texto mínimo. Mostrar un mensaje claro de por qué está bloqueado.
+3. ✅ **"Plantea primero" real:** hecho en `plantea-primero.js` (Paso 2: texto de 10+ caracteres o un trazo; el planteamiento escrito se manda en el prompt). Antes: hoy solo se bloquea hasta que hay un ejercicio. Falta exigir además un planteamiento propio antes de habilitar `help-1…help-6`, ya sea un trazo en la pizarra (`!whiteboard.isEmpty()`) o un texto mínimo. Mostrar un mensaje claro de por qué está bloqueado.
 4. **Escalera de ayuda:** habilitar los niveles en orden. La "Solución" (help-6) solo se desbloquea después de haber usado al menos 2 o 3 niveles previos en ese ejercicio. Mostrar el nivel actual.
-5. **Flujo con foto del ejercicio en el celular:** que subir o tomar la foto sea el primer paso visible (`<input type="file" accept="image/*" capture="environment">`). Hoy solo se puede pegar.
+5. ✅ **Flujo con foto del ejercicio en el celular:** hecho (botones "Tomar foto" y "Subir foto" en el Paso 1). Antes: que subir o tomar la foto sea el primer paso visible (`<input type="file" accept="image/*" capture="environment">`). Hoy solo se puede pegar.
 6. **Métricas para validar la propuesta de valor:** guardarlas en `localStorage`, con opción de exportar a CSV:
    - tiempo desde que se abre el ejercicio hasta el primer trazo (meta: menos de 5 min);
    - si el estudiante planteó antes de pedir ayuda (meta: reducir el "copiar y pegar" en un 65 %);

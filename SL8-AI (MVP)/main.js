@@ -1,6 +1,7 @@
 // Main application logic for TutorIA - Clean version without duplications
 
 import { Whiteboard } from './draw.js';
+import { setupPlanteaPrimero, hasApproach, getApproachPrompt, APPROACH_REQUIRED_MESSAGE } from './plantea-primero.js';
 // Temporarily commented out analytics imports to fix basic functionality
 // import { PromptAnalytics } from '../analytics.js';
 // import { PromptExperiments } from '../experiments.js';
@@ -433,6 +434,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             }
 
             this.setupExerciseImagePaste();
+            setupPlanteaPrimero(this);
         });
     }
 
@@ -469,6 +471,12 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             // Check if content is blocked
             if (this.isContentBlocked) {
                 this.showError('⚠️ Debes escribir un ejercicio o subir una imagen antes de solicitar ayuda. 📝');
+                return;
+            }
+
+            // Plantea primero: sin planteamiento propio no hay ayuda
+            if (!hasApproach()) {
+                this.showError(APPROACH_REQUIRED_MESSAGE);
                 return;
             }
 
@@ -540,6 +548,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
 
             // Get optimized prompt with user context
             let contextualPrompt = this.getOptimizedPrompt(mode, exerciseText);
+            contextualPrompt += getApproachPrompt();
 
             if (this.conversationHistory.length > 0) {
                 contextualPrompt += `\n\nCONTEXTO DE CONVERSACIÓN: Has tenido ${this.conversationHistory.length} interacciones previas. Historial reciente: ${this.conversationHistory.slice(-2).join('\n')}`;
@@ -700,6 +709,12 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             return;
         }
 
+        // Plantea primero: sin planteamiento propio no hay ayuda
+        if (!hasApproach()) {
+            this.showError(APPROACH_REQUIRED_MESSAGE);
+            return;
+        }
+
         const queryInput = document.getElementById('query-input');
         const query = queryInput?.value?.trim();
 
@@ -719,6 +734,7 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
             if (exerciseText.trim()) {
                 contextPrompt += `Contexto del ejercicio: ${exerciseText}. `;
             }
+            contextPrompt += getApproachPrompt();
             contextPrompt += `Responde en español de manera útil sin dar la respuesta completa.`;
 
             const parts = [{ text: contextPrompt }];

@@ -71,7 +71,7 @@ export function resolveConfig(env = process.env) {
     throw new ProviderError(500, 'Configura AI_MODEL con el modelo que quieres usar.');
   }
 
-  return { name, type: preset.type, apiKey, baseUrl, model };
+  return { name, type: preset.type, apiKey, baseUrl, model, fallbackRaw: env.AI_FALLBACK_MODELS };
 }
 
 function toGeminiShape(text) {
@@ -90,34 +90,89 @@ async function readError(res) {
 
 // ---------- Gemini ----------
 
-async function callGemini(body, cfg) {
+// Modelos gratuitos de respaldo si el principal está saturado o sin cuota.
+// Se puede cambiar con AI_FALLBACK_MODELS (separados por coma, vacío = sin respaldo).
+const GEMINI_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
+// 503 = modelo saturado ("high demand"), 500 = error temporal de Google,
+// 429 = sin cuota para ese modelo (cada modelo tiene su propia cuota gratis).
+const RETRYABLE = new Set([429, 500, 503]);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function callGeminiModel(body, model, apiKey) {
   const generationConfig = { ...(body.generationConfig || {}) };
 
   // Los modelos 2.5 "piensan" y ese razonamiento consume maxOutputTokens.
   // Con límites cortos (pistas de 400 tokens) la respuesta puede llegar vacía,
   // así que se apaga el razonamiento salvo que se pida explícitamente.
-  if (/2\.5-flash/.test(cfg.model) && !generationConfig.thinkingConfig) {
+  if (/2\.5-flash/.test(model) && !generationConfig.thinkingConfig) {
     generationConfig.thinkingConfig = { thinkingBudget: 0 };
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
-    body: JSON.stringify({ ...body, generationConfig }),
-  });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const send = (config) =>
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({ ...body, generationConfig: config }),
+    });
 
+  let res = await send(generationConfig);
   if (!res.ok) throw new ProviderError(res.status, await readError(res));
+  let data = await res.json();
 
-  const data = await res.json();
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim();
+  // Modelos que razonan (3.x) pueden gastarse el límite completo pensando y no devolver texto:
+  // se reintenta una vez con más margen de tokens.
+  if (data?.candidates?.[0]?.finishReason === 'MAX_TOKENS' && !extractText(data)) {
+    const bigger = { ...generationConfig, maxOutputTokens: Math.max(2048, (generationConfig.maxOutputTokens || 512) * 4) };
+    res = await send(bigger);
+    if (!res.ok) throw new ProviderError(res.status, await readError(res));
+    data = await res.json();
+  }
 
+  const text = extractText(data);
   if (!text) {
     const reason = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason || 'sin texto';
     throw new ProviderError(502, `La IA no devolvió texto (${reason}).`);
   }
   return toGeminiShape(text);
+}
+
+function extractText(data) {
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim();
+}
+
+function geminiModels(cfg) {
+  const raw = cfg.fallbackRaw;
+  const fallbacks = raw === undefined ? GEMINI_FALLBACKS : raw.split(',').map((m) => m.trim()).filter(Boolean);
+  return [cfg.model, ...fallbacks.filter((m) => m !== cfg.model)];
+}
+
+async function callGemini(body, cfg) {
+  const models = geminiModels(cfg);
+  let lastError;
+
+  for (const model of models) {
+    // Un reintento corto en el mismo modelo si está saturado; luego se pasa al siguiente.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await callGeminiModel(body, model, cfg.apiKey);
+      } catch (error) {
+        lastError = error;
+        if (!RETRYABLE.has(error.status)) throw error;
+        console.warn(`[gemini] ${model} respondió ${error.status}, intento ${attempt + 1}`); // eslint-disable-line no-console
+        if (error.status === 429) break; // sin cuota: reintentar el mismo modelo no sirve
+        if (attempt === 0) await sleep(1200);
+      }
+    }
+  }
+
+  if (lastError?.status === 429) {
+    throw new ProviderError(429, 'Se acabó la cuota gratuita de la IA por ahora. Intenta en unos minutos.');
+  }
+  throw new ProviderError(503, 'La IA está saturada en este momento. Espera unos segundos e inténtalo de nuevo.');
 }
 
 // ---------- APIs compatibles con OpenAI (Groq, OpenRouter, Kimi, custom) ----------

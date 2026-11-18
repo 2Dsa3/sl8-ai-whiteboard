@@ -68,6 +68,7 @@ No hay tests automáticos todavía. Para probar un cambio, levanta `npm run dev`
 | `AI_PROVIDER` | `gemini` (por defecto), `groq`, `openrouter`, `kimi` o `custom` |
 | `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `MOONSHOT_API_KEY` | La key del proveedor elegido |
 | `AI_MODEL` | Opcional, cambia el modelo por defecto del preset |
+| `AI_FALLBACK_MODELS` | Modelos de respaldo si Gemini está saturado (por defecto `gemini-2.5-flash,gemini-2.5-flash-lite`; vacío = sin respaldo) |
 | `AI_BASE_URL`, `AI_API_KEY` | Para `custom`, que acepta cualquier API compatible con OpenAI |
 
 **Modelos por defecto:**

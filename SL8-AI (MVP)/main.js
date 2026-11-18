@@ -1169,6 +1169,12 @@ Responde como un mentor experto que celebra el crecimiento intelectual.`
     }
 
     getErrorMessage(status, errorData) {
+        // El backend (/api/get-ai-response) ya devuelve mensajes claros en español
+        // (API key faltante, proveedor mal configurado, modelo sin visión, etc.).
+        const backendMessage = errorData?.error?.message;
+        if (backendMessage && status !== 429) {
+            return backendMessage;
+        }
         switch (status) {
             case 400: return 'Solicitud inválida. Verifica que hayas dibujado algo en la pizarra.';
             case 401: return 'Error de autenticación. El backend no pudo validar la solicitud.';

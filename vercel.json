@@ -1,15 +1,11 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "SL8-AI (MVP)/**/*",
-      "use": "@vercel/static"
-    }
+    { "src": "api/get-ai-response.js", "use": "@vercel/node" },
+    { "src": "SL8-AI (MVP)/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/SL8-AI (MVP)/$1"
-    }
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/SL8-AI (MVP)/$1" }
   ]
 }

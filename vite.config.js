@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -38,6 +39,17 @@ function localApi(env) {
   }
 }
 
+// El service worker (modo sin conexión) no lo importa ningún módulo, así que Vite no lo copia solo.
+function copyServiceWorker() {
+  return {
+    name: 'pizarra-ia-copy-sw',
+    apply: 'build',
+    closeBundle() {
+      fs.copyFileSync(path.resolve(process.cwd(), 'SL8-AI (MVP)/sw.js'), path.resolve(process.cwd(), 'dist/sw.js'))
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // '' = carga todas las variables del .env de la raíz, no solo las VITE_*.
   // Nunca se exponen al navegador: solo las usa el middleware de arriba.
@@ -46,13 +58,14 @@ export default defineConfig(({ mode }) => {
   return {
     root: 'SL8-AI (MVP)',
     envDir: process.cwd(),
-    plugins: [localApi(env)],
+    plugins: [localApi(env), copyServiceWorker()],
     build: {
       outDir: '../dist',
       emptyOutDir: true,
       rollupOptions: {
         input: {
-          main: 'SL8-AI (MVP)/index.html'
+          main: 'SL8-AI (MVP)/index.html',
+          docente: 'SL8-AI (MVP)/docente.html'
         }
       }
     },

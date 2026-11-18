@@ -5,6 +5,10 @@ import security from "eslint-plugin-security";
 import importPlugin from "eslint-plugin-import";
 
 export default [
+  // Carpetas generadas o de reportes: no se analizan
+  {
+    ignores: ["node_modules/**", "dist/**", "build/**", ".vite/**", "reports/**"],
+  },
   // Base recommended rules
   js.configs.recommended,
   // Import plugin recommended rules (flat config)
@@ -22,7 +26,6 @@ export default [
       "build/**",
       ".vite/**",
       "reports/**",
-      "tmp_**",
     ],
     languageOptions: {
       ecmaVersion: 2022,

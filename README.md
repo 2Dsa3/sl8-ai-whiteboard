@@ -1,86 +1,57 @@
-# SL8.ai 
+# Pizarra IA
 
-![Think First, Code Later](https://img.shields.io/badge/philosophy-think--first--code--later-blueviolet)
+**Plantea primero, luego te guío con pistas.**
 
-## The Visual Debugging Whiteboard for Algorithmic Thinking
+Pizarra IA es una pizarra digital para celular y tablet donde el estudiante sube la foto de un ejercicio de Matemática o Física, **plantea su propio razonamiento con trazo a mano** y recién después recibe **pistas socráticas por niveles**. La solución completa es el último recurso, nunca lo primero.
 
-**SL8.ai** is your AI-powered reasoning partner that helps you work through challenging algorithmic problems not by diving straight into code, but by guiding your logic step-by-step on a digital whiteboard.
+Es el producto del proyecto **PoliAprende** (Emprendimiento e Innovación, ESPOL, Paralelo 4, PAO2 2026). Nace de **SL8.ai**, la pizarra con IA ganadora del hackathon Ecuador Tech Week 2025.
 
-🏆 **Winner of Ecuador Tech Week 2025 Hackathon**
+## El problema
 
-Whether you're expressing your thinking in natural language, pseudocode, or drawing trees and arrays, SL8.ai interprets your ideas, provides feedback, and guides you from confusion to clarity.
+Muchos estudiantes le piden la respuesta a la IA, la copian sin verificar y sacan buena nota en las tareas, pero no entienden el tema. Eso se nota en los exámenes presenciales.
 
----
+## Cómo funciona
 
-## 🤖 Core Functionality
+1. **📷 Ejercicio:** toma o sube la foto (o escribe o pega el enunciado).
+2. **✍️ Planteamiento:** dibuja en la pizarra cómo lo empezarías, o escríbelo. Hasta que no lo hagas, la ayuda está bloqueada.
+3. **🆘 Escalera de ayuda:** los niveles se habilitan en orden.
 
-- **Natural Language + Drawing Interpretation**  
-  Understands user-written logic or visual sketches. If uncertain, asks clarifying questions until 95% confident.
+| Nivel | Botón | Qué hace |
+|---|---|---|
+| 1 | 🤔 Estoy atascado | Una pregunta guía para mirar el problema de otra forma |
+| 2 | 💡 Necesito una pista | Una sola pista para avanzar un paso |
+| 3 | 👣 Siguiente paso | Te dice qué hacer después, sin hacerlo por ti |
+| 4 | ✅ Verificar mi solución | Revisa tu procedimiento y te dice dónde mirar |
+| 5 | 📖 Mostrar solución | Se desbloquea tras usar 3 niveles. Es la solución explicada paso a paso |
+| – | ❓ Aclarar el enunciado | Siempre disponible: datos e incógnita, sin resolver |
 
-- **Step-by-step Guidance**  
-  Gives constructive feedback, highlighting strengths, missing cases, and areas needing clarity.
+Otras funciones:
 
-- **Tiered Help System**  
-  Offers assistance at varying levels — from gentle hints to full solutions.
+- **Sin conexión:** la app se puede abrir y usar para dibujar sin internet. Si pides ayuda sin señal, el pedido se envía solo cuando vuelve la conexión.
+- **Vista docente (`/docente.html`):** muestra un resumen de cómo plantearon los estudiantes, con una miniatura de la pizarra y el nivel de pista al que llegaron. Las métricas se pueden exportar a CSV.
+- **Privacidad:** las métricas se guardan solo en el `localStorage` del dispositivo. No se envían datos personales a ningún servidor.
 
----
+## Métricas (evidencias S14)
 
-## 🚀 How It Works
+Por cada ejercicio se registra:
 
-### 📍 When Given a Problem
+- el tiempo desde que se abre el ejercicio hasta el primer trazo (meta: menos de 5 min);
+- si el estudiante planteó antes de pedir ayuda, y cuántas veces intentó pedirla sin plantear;
+- el nivel máximo de pista usado;
+- si llegó a pedir la solución.
 
-SL8.ai will:
-- Interpret the prompt  
-- Request your initial thoughts in natural language  
-- Encourage free-form logic exploration before coding
+## Uso local
 
-#### 💬 Prompt Example:
-> "Interpret and understand the problem… Now, tell me, what are your initial thoughts or how would you begin to approach this problem? Don’t worry about being right; just describe what comes to mind!"
+```bash
+npm install
+cp .env.example .env     # pon tu API key (ver CLAUDE.md, sección 4)
+npm run dev              # http://localhost:3000
+npm run build            # genera dist/
+npm run lint
+```
 
-### 🧠 When Given Your Reasoning or Sketch
+## Tecnología
 
-SL8.ai will:
-- Interpret your approach  
-- Ask clarifying questions if unclear  
-- Confirm what's correct  
-- Identify missing logic or edge cases  
-- Suggest improvements
-
----
-
-## 🆘 Help Commands
-
-| Help # | Command                     | SL8.ai Action                                                                 |
-|--------|-----------------------------|--------------------------------------------------------------------------------|
-| 1      | "I am stuck"                | Helps you explore more cases or reframe the logic                             |
-| 2      | "I need a hint"             | Provides subtle hints, without repeating what you've already discovered       |
-| 3      | "Clarify the problem"       | Shares more examples and details about the problem statement                  |
-| 4      | "Give me a next step suggestion" | Suggests a general direction for reasoning, not a full formula          |
-| 5      | "I think I have the solution" | Evaluates it; if incorrect, gives counterexamples and constructive feedback |
-| 6      | "I want the solution"       | Provides the full solution, explains strengths, gaps, and the key solving pattern |
-
-SL8.ai continues supporting you until the problem is solved or Help #6 is requested.
-
----
-
-## 🔑 Why SL8.ai
-
-- Starts with logic, not code  
-- Ideal for interviews, bootcamp prep, and CS students  
-- Designed to foster understanding, not just quick answers  
-
----
-
-## 🛠 Technologies
-
-- **LLM**: Gemini 2.5 API  
-- **Frontend**: HTML, CSS3, JavaScript, TailwindCSS  
-- **Backend**: None — fully client-side for rapid deployment and simplicity  
-
----
-
-## 📬 Contact
-
-For questions, ideas, or collaborations, reach out to the **SL8.ai** team.  
-
-_Built with ❤️ at Ecuador Tech Week 2025_
+- Frontend: HTML, JavaScript (ES modules) y Tailwind por CDN, sin framework.
+- Backend: una función serverless de Vercel (`api/get-ai-response.js`) que traduce a Gemini, Groq, OpenRouter, Kimi o cualquier API compatible con OpenAI.
+- Despliegue: ver [DEPLOYMENT.md](DEPLOYMENT.md).

@@ -13,6 +13,9 @@ const PRESETS = {
     type: 'gemini',
     keyEnv: ['GEMINI_API_KEY'],
     model: 'gemini-2.5-flash',
+    // Si el modelo principal está saturado (503), sin cuota (429) o retirado (404),
+    // se prueban estos en orden. Se cambian con AI_FALLBACK_MODELS, sin tocar el código.
+    fallbacks: ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'],
   },
   groq: {
     type: 'openai',
@@ -41,6 +44,18 @@ const PRESETS = {
   },
 };
 
+// Tiempo máximo por intento y para el pedido completo (todos los modelos de respaldo).
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 20000;
+const DEFAULT_TOTAL_TIMEOUT_MS = 50000;
+
+// Un modelo que falló se salta durante este tiempo, para no esperar su timeout en cada pedido.
+// (Vive en memoria: dura mientras la función de Vercel o el servidor de Vite sigan activos.)
+const COOLDOWN_MS = 2 * 60 * 1000;
+const cooldownUntil = new Map();
+
+// Errores que justifican probar con el siguiente modelo de la lista.
+const RETRYABLE_STATUS = new Set([404, 408, 429, 500, 502, 503, 504]);
+
 export class ProviderError extends Error {
   constructor(status, message) {
     super(message);
@@ -59,6 +74,11 @@ export function resolveConfig(env = process.env) {
   let baseUrl = env.AI_BASE_URL || preset.baseUrl || '';
   while (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
   const model = env.AI_MODEL || preset.model;
+  const fallbackList = env.AI_FALLBACK_MODELS !== undefined
+    ? env.AI_FALLBACK_MODELS.split(',')
+    : preset.fallbacks || [];
+  const models = [...new Set([model, ...fallbackList].map((m) => (m || '').trim()).filter(Boolean))];
+  const attemptTimeoutMs = Number(env.AI_TIMEOUT_MS) || DEFAULT_ATTEMPT_TIMEOUT_MS;
 
   if (!apiKey && !(preset.type === 'openai' && baseUrl.includes('localhost'))) {
     const vars = ['AI_API_KEY', ...preset.keyEnv].join(' o ');
@@ -71,11 +91,27 @@ export function resolveConfig(env = process.env) {
     throw new ProviderError(500, 'Configura AI_MODEL con el modelo que quieres usar.');
   }
 
-  return { name, type: preset.type, apiKey, baseUrl, model };
+  return { name, type: preset.type, apiKey, baseUrl, model, models, attemptTimeoutMs };
 }
 
 function toGeminiShape(text) {
   return { candidates: [{ content: { role: 'model', parts: [{ text }] } }] };
+}
+
+// fetch con límite de tiempo: si el proveedor se cuelga, se corta y se pasa al siguiente modelo.
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new ProviderError(504, `La IA tardó más de ${Math.round(timeoutMs / 1000)} s en responder.`);
+    }
+    throw new ProviderError(502, `No se pudo conectar con el proveedor de IA (${error.message}).`);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function readError(res) {
@@ -90,7 +126,7 @@ async function readError(res) {
 
 // ---------- Gemini ----------
 
-async function callGemini(body, cfg) {
+async function callGemini(body, cfg, timeoutMs) {
   const generationConfig = { ...(body.generationConfig || {}) };
 
   // Los modelos 2.5 "piensan" y ese razonamiento consume maxOutputTokens.
@@ -101,11 +137,11 @@ async function callGemini(body, cfg) {
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
     body: JSON.stringify({ ...body, generationConfig }),
-  });
+  }, timeoutMs);
 
   if (!res.ok) throw new ProviderError(res.status, await readError(res));
 
@@ -152,7 +188,7 @@ function geminiToOpenAIMessages(body) {
   return messages;
 }
 
-async function callOpenAICompatible(body, cfg) {
+async function callOpenAICompatible(body, cfg, timeoutMs) {
   const gc = body.generationConfig || {};
   const payload = {
     model: cfg.model,
@@ -169,11 +205,11 @@ async function callOpenAICompatible(body, cfg) {
     headers['X-Title'] = 'Pizarra IA';
   }
 
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+  const res = await fetchWithTimeout(`${cfg.baseUrl}/chat/completions`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
-  });
+  }, timeoutMs);
 
   if (!res.ok) {
     let message = await readError(res);
@@ -195,5 +231,36 @@ export async function generate(body, env = process.env) {
     throw new ProviderError(400, 'El cuerpo debe traer "contents" en formato Gemini.');
   }
   const cfg = resolveConfig(env);
-  return cfg.type === 'gemini' ? callGemini(body, cfg) : callOpenAICompatible(body, cfg);
+  const call = cfg.type === 'gemini' ? callGemini : callOpenAICompatible;
+  const totalTimeoutMs = Number(env.AI_TOTAL_TIMEOUT_MS) || DEFAULT_TOTAL_TIMEOUT_MS;
+  const deadline = Date.now() + totalTimeoutMs;
+
+  // Primero los modelos sanos; los que están en pausa quedan al final, por si los demás también fallan.
+  const now = Date.now();
+  const isCooling = (m) => (cooldownUntil.get(m) || 0) > now;
+  const ordered = [...cfg.models.filter((m) => !isCooling(m)), ...cfg.models.filter(isCooling)];
+
+  let lastError = null;
+  for (const model of ordered) {
+    const remaining = deadline - Date.now();
+    if (remaining < 3000) break;
+    try {
+      const result = await call(body, { ...cfg, model }, Math.min(cfg.attemptTimeoutMs, remaining));
+      cooldownUntil.delete(model);
+      return result;
+    } catch (error) {
+      const retryable = error instanceof ProviderError && RETRYABLE_STATUS.has(error.status);
+      if (!retryable) throw error;
+      lastError = error;
+      cooldownUntil.set(model, Date.now() + COOLDOWN_MS);
+      console.warn(`[ia] ${model} falló (${error.status}): ${error.message} Se pausa 2 min y se prueba el siguiente modelo.`);
+    }
+  }
+
+  // Ningún modelo respondió: mensaje claro para el estudiante (el detalle técnico queda en el log).
+  console.error('[ia] Ningún modelo respondió. Último error:', lastError?.status, lastError?.message);
+  throw new ProviderError(
+    503,
+    'La IA está muy ocupada en este momento. Tu trabajo sigue en la pizarra: espera unos segundos y vuelve a pedir la ayuda.'
+  );
 }

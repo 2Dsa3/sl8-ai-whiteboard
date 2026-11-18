@@ -24,9 +24,16 @@ Este repo empezó como **SL8.ai**, una pizarra con IA para pensamiento algorítm
 
 ```
 SL8-AI (MVP)/         Frontend estático (la app real)
-  index.html          UI con Tailwind por CDN, menú de ayuda (help-1 … help-6), panel de respuesta
-  main.js             Clase TutorIA: prompts, bloqueo de contenido, tokens, llamadas a /api
-  draw.js             Clase Whiteboard: canvas, pointer events, deshacer/rehacer, getCanvasImageData()
+  index.html          UI con Tailwind por CDN: paso 1 foto/enunciado, paso 2 planteamiento, paso 3 ayuda (help-1 … help-6)
+  main.js             Clase PizarraIA: flujo, bloqueo, tokens, llamadas a /api (window.pizarraIA)
+  draw.js             Clase Whiteboard: canvas, pointer events, deshacer/rehacer, isEmpty(), evento 'whiteboard:change'
+  prompts.js          BASE_PROMPT + TUTOR_PROMPTS por modo (Matemática/Física), buildQueryPrompt()
+  help-ladder.js      "Plantea primero" (getPlanStatus) y escalera de niveles (HelpLadder)
+  metrics.js          Métricas por ejercicio en localStorage ('pizarraIA_metricas') y export CSV
+  docente.html/.js    Vista docente: resumen de métricas e historial del dispositivo
+  offline.js, sw.js   Modo sin conexión: service worker + pedido de ayuda en espera
+  exercise-photo.js   Foto del ejercicio (cámara/galería), se reduce a JPEG ≤1600 px
+  format.js           escapeHtml() y markdown mínimo seguro para las respuestas
   styles.css
 api/
   get-ai-response.js  Endpoint serverless (Vercel), el ÚNICO punto de contacto con la IA
@@ -39,7 +46,7 @@ vite.config.js        Dev server; incluye un middleware que sirve /api localment
 vercel.json           Despliega el frontend estático y la función /api
 ```
 
-Hay archivos sueltos de una etapa anterior que no se usan: `tmp_*.txt`, `patch_snippet.txt`, `cur_updateRecentInteractions.txt`, y `CODE_REVIEW.md` y `FEATURE_SUMMARY.md`, que están vacíos. Se pueden borrar si el equipo está de acuerdo.
+Los archivos sueltos de la etapa anterior (`tmp_*.txt`, `patch_snippet.txt`, etc.) ya se borraron.
 
 ## 3. Comandos
 
@@ -51,7 +58,7 @@ npm run build            # genera dist/
 npm run lint             # ESLint (plugins security y sonarjs)
 ```
 
-No hay tests automáticos todavía. Para probar un cambio, levanta `npm run dev`, escribe o pega un ejercicio, dibuja algo y usa los botones de ayuda.
+No hay tests automáticos todavía. Para probar un cambio, levanta `npm run dev`, sube o escribe un ejercicio, dibuja algo y usa los botones de ayuda (en orden). Revisa `/docente.html` para ver las métricas.
 
 ## 4. IA: cómo funciona y cómo cambiar de proveedor
 
@@ -68,6 +75,8 @@ No hay tests automáticos todavía. Para probar un cambio, levanta `npm run dev`
 | `AI_PROVIDER` | `gemini` (por defecto), `groq`, `openrouter`, `kimi` o `custom` |
 | `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `MOONSHOT_API_KEY` | La key del proveedor elegido |
 | `AI_MODEL` | Opcional, cambia el modelo por defecto del preset |
+| `AI_FALLBACK_MODELS` | Opcional. Modelos de respaldo separados por coma (con Gemini, por defecto `gemini-3.5-flash-lite,gemini-flash-lite-latest`) |
+| `AI_TIMEOUT_MS` | Opcional. Tiempo máximo por intento, por defecto 20000 |
 | `AI_BASE_URL`, `AI_API_KEY` | Para `custom`, que acepta cualquier API compatible con OpenAI |
 
 **Modelos por defecto:**
@@ -80,6 +89,8 @@ No hay tests automáticos todavía. Para probar un cambio, levanta `npm run dev`
 | kimi | `kimi-latest` |
 
 Los nombres de modelos gratuitos cambian seguido. Si uno deja de existir, cambia `AI_MODEL` y no el código.
+
+**Alta demanda / modelos caídos:** `generate()` corta cada intento a los `AI_TIMEOUT_MS` y, ante 404/429/5xx o timeout, pasa al siguiente modelo de la lista (`AI_MODEL` + `AI_FALLBACK_MODELS`). El modelo que falla queda en pausa 2 min (en memoria) para no esperar su timeout en cada pedido. Si ninguno responde, el estudiante ve un mensaje claro en español.
 
 **Importante:**
 - La app manda **imágenes**: la pizarra y la foto del ejercicio. El modelo elegido debe aceptar imágenes. Gemini es la opción recomendada.
@@ -96,7 +107,7 @@ Los nombres de modelos gratuitos cambian seguido. Si uno deja de existir, cambia
 - JavaScript ES modules, sin framework. Tailwind por CDN en `index.html`.
 - Textos de UI y prompts en español. Comentarios en español.
 - Cambios chicos y enfocados. Antes de terminar, corre `npm run lint` y no dejes errores nuevos.
-- `main.js` es grande (~1400 líneas). Si agregas una funcionalidad nueva, preferir un archivo aparte en `SL8-AI (MVP)/` e importarlo, en vez de seguir creciendo `main.js`.
+- `main.js` tiene ~1000 líneas. Si agregas una funcionalidad nueva, preferir un archivo aparte en `SL8-AI (MVP)/` e importarlo, en vez de seguir creciendo `main.js`.
 - No reactivar la infraestructura de analytics vieja sin revisarla. Para métricas nuevas, ver la tarea 6 de abajo.
 - Commits en español, descriptivos. Trabajar en ramas y abrir PR hacia `main`.
 
@@ -105,18 +116,27 @@ Los nombres de modelos gratuitos cambian seguido. Si uno deja de existir, cambia
 Está en orden de prioridad y sale del prototipo, del storyboard y del feedback del profesor del Sprint 2.
 
 1. **Rebranding:** cambiar "SL8 - AI" y "TutorIA" por "Pizarra IA" en `<title>`, encabezados, textos y prompts. Actualizar el README.
+   ✅ Hecho: título, encabezados, panel, prompts, README, package.json; la clase ahora es `PizarraIA`.
 2. **Prompts para Matemática y Física:** hoy los prompts de `tutorPrompts` en `main.js` hablan de programación y algoritmos. Hay que reescribirlos para ejercicios de bachillerato y universidad (álgebra, cálculo, física), manteniendo el estilo socrático. Los modos `stuck`, `hint`, `clarify`, `next_step`, `verify` y `solution` se mantienen.
+   ✅ Hecho: `prompts.js` con prompt base + un prompt por modo, sin LaTeX, cuidando unidades y signos.
 3. **"Plantea primero" real:** hoy solo se bloquea hasta que hay un ejercicio. Falta exigir además un planteamiento propio antes de habilitar `help-1…help-6`, ya sea un trazo en la pizarra (`!whiteboard.isEmpty()`) o un texto mínimo. Mostrar un mensaje claro de por qué está bloqueado.
+   ✅ Hecho: `help-ladder.js` exige un trazo o ≥15 caracteres en "Tu planteamiento"; botones bloqueados con el motivo. La pregunta libre también está bloqueada.
 4. **Escalera de ayuda:** habilitar los niveles en orden. La "Solución" (help-6) solo se desbloquea después de haber usado al menos 2 o 3 niveles previos en ese ejercicio. Mostrar el nivel actual.
+   ✅ Hecho: orden 1 atascado → 2 pista → 3 siguiente paso → 4 verificar; la solución se desbloquea tras 3 niveles. "Aclarar enunciado" es lateral. Badge con el nivel actual.
 5. **Flujo con foto del ejercicio en el celular:** que subir o tomar la foto sea el primer paso visible (`<input type="file" accept="image/*" capture="environment">`). Hoy solo se puede pegar.
+   ✅ Hecho: botones "Tomar foto" (`capture="environment"`) y "Subir foto" arriba; en el celular el ejercicio va primero. Las fotos se reducen a JPEG.
 6. **Métricas para validar la propuesta de valor:** guardarlas en `localStorage`, con opción de exportar a CSV:
    - tiempo desde que se abre el ejercicio hasta el primer trazo (meta: menos de 5 min);
    - si el estudiante planteó antes de pedir ayuda (meta: reducir el "copiar y pegar" en un 65 %);
    - nivel máximo de pista usado por ejercicio;
    - si llegó a pedir la solución.
    Estas son las evidencias de la actividad S14. No mandar datos personales a ningún servidor.
+   ✅ Hecho: `metrics.js` guarda por ejercicio en localStorage; exportación CSV desde la vista docente.
 7. **Vista docente (simple):** una pantalla de resumen que lea esas métricas y el historial de un dispositivo, para la demo del piloto.
+   ✅ Hecho: `docente.html` con indicadores, distribución de niveles e historial con miniatura del planteamiento.
 8. **Modo sin conexión:** que se pueda seguir dibujando sin internet y que la ayuda se pueda pedir al volver la señal.
+   ✅ Hecho: `sw.js` (red primero, caché de respaldo) y el pedido de ayuda queda en espera hasta el evento `online`.
 9. **Limpieza:** borrar los archivos temporales de la sección 2, actualizar `DEPLOYMENT.md` con el flujo de Vercel y las variables de la sección 4.
+   ✅ Hecho: archivos temporales borrados; `DEPLOYMENT.md` y `README.md` reescritos.
 
 Cuando termines una tarea del backlog, márcala aquí con ✅ y una línea sobre qué se hizo.

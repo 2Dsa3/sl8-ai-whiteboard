@@ -126,6 +126,11 @@ async function readError(res) {
 
 // ---------- Gemini ----------
 
+function extractGeminiText(data) {
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim();
+}
+
 async function callGemini(body, cfg, timeoutMs) {
   const generationConfig = { ...(body.generationConfig || {}) };
 
@@ -137,17 +142,26 @@ async function callGemini(body, cfg, timeoutMs) {
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
-  const res = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
-    body: JSON.stringify({ ...body, generationConfig }),
-  }, timeoutMs);
+  const send = async (config) => {
+    const res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
+      body: JSON.stringify({ ...body, generationConfig: config }),
+    }, timeoutMs);
+    if (!res.ok) throw new ProviderError(res.status, await readError(res));
+    return res.json();
+  };
 
-  if (!res.ok) throw new ProviderError(res.status, await readError(res));
+  let data = await send(generationConfig);
+  let text = extractGeminiText(data);
 
-  const data = await res.json();
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim();
+  // Modelos que razonan (3.x) pueden gastarse el límite completo pensando y no devolver texto:
+  // se reintenta una vez con más margen de tokens.
+  if (!text && data?.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+    const maxOutputTokens = Math.max(2048, (generationConfig.maxOutputTokens || 512) * 4);
+    data = await send({ ...generationConfig, maxOutputTokens });
+    text = extractGeminiText(data);
+  }
 
   if (!text) {
     const reason = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason || 'sin texto';
@@ -259,6 +273,9 @@ export async function generate(body, env = process.env) {
 
   // Ningún modelo respondió: mensaje claro para el estudiante (el detalle técnico queda en el log).
   console.error('[ia] Ningún modelo respondió. Último error:', lastError?.status, lastError?.message);
+  if (lastError?.status === 429) {
+    throw new ProviderError(429, 'Se acabó la cuota gratuita de la IA por ahora. Intenta en unos minutos.');
+  }
   throw new ProviderError(
     503,
     'La IA está muy ocupada en este momento. Tu trabajo sigue en la pizarra: espera unos segundos y vuelve a pedir la ayuda.'

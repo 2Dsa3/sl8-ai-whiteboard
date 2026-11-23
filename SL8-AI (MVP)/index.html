@@ -4,16 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SL8 - AI</title>
+    <title>Pizarra IA</title>
+    <meta name="description" content="Pizarra IA: plantea tu razonamiento a mano y recibe pistas socráticas por niveles.">
+    <meta name="theme-color" content="#2563eb">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .canvas-container {
             position: relative;
-        }
-
-        .hint-active {
-            background-color: #fbbf24 !important;
-            box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
         }
 
         canvas {
@@ -181,9 +178,34 @@
             transition: all 0.3s ease-in-out;
         }
 
+        /* Escalera de ayuda */
+        .help-option.help-locked {
+            opacity: 0.55;
+            cursor: not-allowed;
+            filter: grayscale(60%);
+        }
+
+        .help-option.help-locked:hover {
+            background-color: transparent;
+        }
+
+        .help-option.help-done .done-check {
+            display: inline;
+        }
+
+        .done-check {
+            display: none;
+        }
+
+        /* Botones cómodos para el dedo */
+        .touch-btn {
+            min-height: 44px;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .overlay-layout {
+                display: flex !important;
                 flex-direction: column !important;
                 height: auto !important;
                 gap: 1rem;
@@ -217,13 +239,53 @@
                 order: 4;
                 height: 250px !important;
             }
+
+            #exercise-box {
+                max-height: none;
+            }
+
+            #help-section {
+                order: 4;
+            }
+
+            #help-menu {
+                position: static !important;
+                width: 100% !important;
+                margin-top: 0.5rem;
+            }
+
+            #canvas-controls {
+                order: 3;
+                transform: none !important;
+                justify-content: center;
+            }
+
+            #output-panel {
+                order: 5;
+                height: 70vh !important;
+            }
+
+            #eraser-size-panel {
+                order: 3;
+                transform: none !important;
+            }
+
+            #minimized-output {
+                order: 5;
+            }
         }
     </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen"><div class="container mx-auto p-4">
+<body class="bg-gray-50 min-h-screen">
+    <!-- Aviso sin conexión -->
+    <div id="offline-banner" class="hidden fixed top-0 inset-x-0 bg-amber-500 text-white text-center text-sm py-2 px-4 z-50 shadow">
+        📴 Sin conexión. Puedes seguir dibujando; si pides ayuda, se enviará cuando vuelva la señal.
+    </div>
+    <div class="container mx-auto p-4">
         <header class="text-center mb-4">
-            <h1 class="text-3xl font-bold text-gray-800">SL8 - AI</h1>
+            <h1 class="text-3xl font-bold text-gray-800">Pizarra IA</h1>
+            <p class="text-sm text-gray-500">Plantea primero, luego te guío con pistas.</p>
         </header>
 
         <!-- Main Layout -->
@@ -239,8 +301,8 @@
                     <div id="canvas-block-overlay" class="blocked-overlay active">
                         <div class="blocked-message">
                             <div class="text-2xl mb-2">🔒</div>
-                            <h3 class="font-bold text-gray-800 mb-2">Pizarra Bloqueada</h3>
-                            <p class="text-sm text-gray-600">Escribe un ejercicio o sube una imagen para comenzar</p>
+                            <h2 class="font-bold text-gray-800 mb-2">Pizarra bloqueada</h2>
+                            <p class="text-sm text-gray-600">📷 Toma o sube la foto del ejercicio (o escríbelo) para empezar</p>
                         </div>
                     </div>
                 </div>
@@ -298,13 +360,27 @@
 
             <!-- Exercise Overlay -->
             <div id="exercise-box"
-                class="exercise-box absolute top-4 left-4 w-80 bg-white rounded-lg border-2 border-gray-300 p-4 shadow-lg z-10">
+                class="exercise-box absolute top-4 left-4 w-80 bg-white rounded-lg border-2 border-gray-300 p-4 shadow-lg z-10 overflow-y-auto">
                 <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-sm font-semibold text-gray-800">Ejercicio</h2>
+                    <h2 class="text-sm font-semibold text-gray-800">Paso 1 · El ejercicio</h2>
                     <button id="clear-exercise"
                         class="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50">
                         🗑️ Limpiar
                     </button>
+                </div>
+
+                <!-- Foto del ejercicio: primer paso en el celular -->
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <label for="exercise-photo-camera"
+                        class="touch-btn cursor-pointer bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-2 text-sm font-semibold flex items-center justify-center gap-1 text-center">
+                        📷 Tomar foto
+                    </label>
+                    <label for="exercise-photo-gallery"
+                        class="touch-btn cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg px-2 py-2 text-sm font-semibold flex items-center justify-center gap-1 text-center">
+                        🖼️ Subir foto
+                    </label>
+                    <input id="exercise-photo-camera" type="file" accept="image/*" capture="environment" class="hidden">
+                    <input id="exercise-photo-gallery" type="file" accept="image/*" class="hidden">
                 </div>
 
                 <!-- Exercise Content Area -->
@@ -313,79 +389,95 @@
                     <!-- Text Input -->
                     <textarea id="exercise-input"
                         class="w-full min-h-16 resize-none border-none bg-transparent text-sm focus:outline-none"
-                        placeholder="Pega aquí tu ejercicio (texto o imagen)..."
+                        placeholder="…o escribe / pega aquí el enunciado (texto o imagen)"
                         oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
 
                     <!-- Image Container -->
                     <div id="exercise-image-container" class="hidden mt-2">
                         <div class="relative">
-                            <img id="exercise-image" class="max-w-full h-auto rounded border" alt="Ejercicio pegado">
+                            <img id="exercise-image" class="max-w-full h-auto rounded border" alt="Foto del ejercicio">
                             <button id="remove-exercise-image"
-                                class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600">
+                                class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-red-600"
+                                title="Quitar foto">
                                 ✕
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Instructions -->
-                <p class="text-xs text-gray-500 mt-2">
-                    💡 Puedes pegar texto o imágenes (Ctrl+V)
-                </p>
+                <!-- Paso 2: planteamiento propio -->
+                <div class="mt-3">
+                    <h2 class="text-sm font-semibold text-gray-800 mb-1">Paso 2 · Tu planteamiento</h2>
+                    <p class="text-xs text-gray-500 mb-1">Dibuja en la pizarra cómo lo empezarías, o escríbelo aquí:</p>
+                    <textarea id="plan-input" rows="2"
+                        class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-500"
+                        placeholder="Ej.: Uso la fórmula general porque es una ecuación de segundo grado…"></textarea>
+                    <div id="plan-status" class="text-xs mt-1 text-amber-700">⏳ Aún no planteas tu razonamiento.</div>
+                </div>
             </div>
 
             <!-- Help Bar (Top Right) -->
             <div id="help-section" class="help-blocked absolute top-4 right-4 z-10">
                 <!-- Help Toggle Button -->
                 <button id="help-toggle"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg font-medium flex items-center space-x-2 transition-all duration-200">
+                    class="touch-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg font-medium flex items-center space-x-2 transition-all duration-200">
                     <span>🆘</span>
-                    <span>Ayuda</span>
+                    <span>Paso 3 · Ayuda</span>
+                    <span id="help-level-badge" class="bg-blue-700 text-xs px-2 py-0.5 rounded-full">🔒</span>
                     <span id="help-arrow" class="transform transition-transform duration-200">▼</span>
                 </button>
 
                 <!-- Help Options Menu (Hidden by default) -->
                 <div id="help-menu"
-                    class="hidden absolute top-12 right-0 bg-white rounded-lg shadow-xl border-2 border-gray-200 p-2 w-80 max-h-96 overflow-y-auto">
+                    class="hidden absolute top-12 right-0 bg-white rounded-lg shadow-xl border-2 border-gray-200 p-2 w-80 max-h-[70vh] overflow-y-auto">
+                    <div id="help-level-status" class="text-xs font-semibold text-blue-700 px-2 py-1">Nivel actual: 0 de 5</div>
+                    <div id="plan-first-notice" class="hidden text-xs text-amber-800 bg-amber-50 border border-amber-300 rounded p-2 mx-1 mb-2"></div>
+
                     <div class="space-y-1">
+                        <div class="text-[11px] uppercase tracking-wide text-gray-500 px-2 pt-1">Escalera de ayuda</div>
+
                         <button id="help-1"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-red-400">
-                            <div class="font-semibold text-red-600">🚫 Estoy Atascado</div>
-                            <div class="text-gray-600 text-xs">Te ayudo a entender mejor el problema y considerar más
-                                casos</div>
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-red-400">
+                            <div class="font-semibold text-red-600">1 · 🤔 Estoy atascado <span class="done-check">✔️</span></div>
+                            <div class="text-gray-600 text-xs">Una pregunta guía para mirar el problema de otra forma</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
                         </button>
 
                         <button id="help-2"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-orange-400">
-                            <div class="font-semibold text-orange-600">💡 Necesito una Pista</div>
-                            <div class="text-gray-600 text-xs">Te doy una pista específica para avanzar hacia la
-                                solución</div>
-                        </button>
-
-                        <button id="help-3"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-yellow-400">
-                            <div class="font-semibold text-yellow-600">❓ Aclarar el Problema</div>
-                            <div class="text-gray-600 text-xs">Te proporciono más ejemplos e información sobre el
-                                problema</div>
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-orange-400">
+                            <div class="font-semibold text-orange-600">2 · 💡 Necesito una pista <span class="done-check">✔️</span></div>
+                            <div class="text-gray-600 text-xs">Una sola pista para avanzar un paso</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
                         </button>
 
                         <button id="help-4"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-green-400">
-                            <div class="font-semibold text-green-600">👣 Siguiente Paso</div>
-                            <div class="text-gray-600 text-xs">Te sugiero cuál debería ser tu próximo paso</div>
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-green-400">
+                            <div class="font-semibold text-green-600">3 · 👣 Siguiente paso <span class="done-check">✔️</span></div>
+                            <div class="text-gray-600 text-xs">Te digo qué hacer después, sin hacerlo por ti</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
                         </button>
 
                         <button id="help-5"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-purple-400">
-                            <div class="font-semibold text-purple-600">✅ Verificar Solución</div>
-                            <div class="text-gray-600 text-xs">Reviso si tu solución es correcta y te doy feedback</div>
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-purple-400">
+                            <div class="font-semibold text-purple-600">4 · ✅ Verificar mi solución <span class="done-check">✔️</span></div>
+                            <div class="text-gray-600 text-xs">Reviso tu procedimiento y te digo dónde mirar</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
                         </button>
 
                         <button id="help-6"
-                            class="help-option w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-gray-400">
-                            <div class="font-semibold text-gray-600">📖 Mostrar Solución</div>
-                            <div class="text-gray-600 text-xs">Te muestro la solución completa con explicación detallada
-                            </div>
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-gray-400">
+                            <div class="font-semibold text-gray-700">5 · 📖 Mostrar solución <span class="done-check">✔️</span></div>
+                            <div class="text-gray-600 text-xs">Último recurso: la solución explicada paso a paso</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
+                        </button>
+
+                        <div class="text-[11px] uppercase tracking-wide text-gray-500 px-2 pt-2">Siempre disponible</div>
+
+                        <button id="help-3"
+                            class="help-option touch-btn w-full text-left px-3 py-2 rounded hover:bg-blue-50 text-sm border-l-4 border-yellow-400">
+                            <div class="font-semibold text-yellow-700">❓ Aclarar el enunciado</div>
+                            <div class="text-gray-600 text-xs">Qué datos tienes y qué te piden, sin resolver</div>
+                            <div class="lock-reason hidden text-xs text-gray-500 mt-1"></div>
                         </button>
                     </div>
                 </div>
@@ -398,9 +490,14 @@
                 <div class="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
                     <h2 class="text-lg font-semibold text-gray-800 flex items-center">
                         <span class="mr-2">🤖</span>
-                        <span>Respuesta de TutorIA</span>
+                        <span>Pizarra IA</span>
                     </h2>
                     <div class="flex space-x-2">
+                        <button id="open-help-from-panel"
+                            class="h-8 px-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center text-xs font-semibold transition-colors duration-200"
+                            title="Pedir el siguiente nivel de ayuda">
+                            🆘 Más ayuda
+                        </button>
                         <button id="minimize-output"
                             class="w-8 h-8 rounded-full bg-yellow-500 hover:bg-yellow-600 text-white flex items-center justify-center text-sm font-bold transition-colors duration-200"
                             title="Minimizar">
@@ -419,7 +516,7 @@
                     <!-- Loading Indicator -->
                     <div id="loadingIndicator" class="hidden text-center py-8">
                         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        <p class="mt-2 text-sm text-gray-600">Pensando...</p>
+                        <p class="mt-2 text-sm text-gray-600">Pensando…</p>
                     </div>
 
                     <!-- AI Response Area -->
@@ -431,7 +528,7 @@
                     <div class="flex space-x-2 mt-auto">
                         <input id="query-input" type="text"
                             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                            placeholder="Haz una pregunta adicional...">
+                            placeholder="Haz una pregunta sobre el ejercicio…">
                         <button id="send-query"
                             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
                             Enviar
@@ -452,13 +549,13 @@
         </div>
 
         <!-- Footer -->
-        <div class="text-center mt-4 text-gray-500 text-xs">
-            <p>Powered by Google Gemini AI | Hackathon Tech AI 2025</p>
+        <div class="text-center mt-4 text-gray-500 text-xs space-y-1">
+            <p>Pizarra IA · PoliAprende · ESPOL</p>
+            <p><a href="docente.html" class="text-blue-600 hover:underline">📊 Vista docente y métricas</a></p>
         </div>
     </div>
 
     <!-- JavaScript Files -->
-    <script type="module" src="draw.js"></script>
     <script type="module" src="main.js"></script>
     
 </body>

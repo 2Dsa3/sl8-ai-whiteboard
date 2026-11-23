@@ -1,6 +1,0 @@
-                    </div>
-                </div>
-                ${interaction.feedback ? `
-                    <div class="mt-2 text-xs ${interaction.feedback.wasHelpful ? 'text-green-600' : 'text-red-600'}">
-                        ${interaction.feedback.wasHelpful ? '👍 Helpful' : '👎 Not helpful'}
-

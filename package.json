@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "SL8.ai - Visual Debugging Whiteboard for Algorithmic Thinking",
+  "description": "Pizarra IA - pizarra con pistas socráticas por niveles para Matemática y Física (PoliAprende, ESPOL)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -25,9 +25,10 @@
     "ai",
     "whiteboard",
     "education",
-    "algorithms",
+    "matematica",
+    "fisica",
     "tutoring"
   ],
-  "author": "SL8.ai Team",
+  "author": "Equipo PoliAprende",
   "license": "MIT"
 }

@@ -20,12 +20,6 @@
     100% { transform: rotate(360deg); }
 }
 
-/* Hint button active state */
-.hint-active {
-    background-color: #fbbf24 !important;
-    box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
-}
-
 /* Canvas cursor style */
 .cursor-crosshair {
     cursor: crosshair;

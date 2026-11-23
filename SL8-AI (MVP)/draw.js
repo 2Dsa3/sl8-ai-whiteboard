@@ -1,8 +1,6 @@
 class Whiteboard {
     constructor(canvasId, cursorId) {
-        console.log('🎨 Initializing Whiteboard with canvasId:', canvasId);
         this.canvas = document.getElementById(canvasId);
-        console.log('🎨 Canvas element:', this.canvas);
         
         if (!this.canvas) {
             console.error('❌ Canvas element not found!');
@@ -10,7 +8,6 @@ class Whiteboard {
         }
         
         this.context = this.canvas.getContext('2d');
-        console.log('🎨 Canvas context:', this.context);
         
         // Configure canvas for optimal stylus/touch performance
         this.canvas.style.touchAction = 'none';
@@ -26,16 +23,13 @@ class Whiteboard {
         this.bindEvents();
         this.saveState(); // Guardar el estado inicial en blanco
         
-        console.log('✅ Whiteboard initialized successfully');
     }
 
     bindEvents() {
-        console.log('🎯 Binding events to canvas');
         window.addEventListener('resize', () => this.resizeCanvas());
         
         // Modern pointer events (supports mouse, pen, touch)
         if ('PointerEvent' in window) {
-            console.log('🎯 Using Pointer Events API');
             this.canvas.addEventListener('pointerdown', (e) => this.handlePointerStart(e));
             this.canvas.addEventListener('pointermove', (e) => this.handlePointerMove(e));
             this.canvas.addEventListener('pointerup', (e) => this.handlePointerEnd(e));
@@ -43,7 +37,6 @@ class Whiteboard {
             this.canvas.addEventListener('pointerenter', (e) => this.handlePointerEnter(e));
         } else {
             // Fallback to mouse and touch events for older browsers
-            console.log('🎯 Using fallback mouse/touch events');
             
             // Mouse events
             this.canvas.addEventListener('mousedown', (e) => this.handlePointerStart(e));
@@ -71,15 +64,11 @@ class Whiteboard {
             });
         }
         
-        console.log('✅ Events bound successfully');
     }
 
     // Unified pointer event handlers
     handlePointerStart(e) {
         const coords = this.getEventCoordinates(e);
-        const inputType = this.getInputType(e);
-        
-        console.log(`🎯 ${inputType} down at:`, coords.x, coords.y);
         
         // Prevent default to avoid scrolling on touch devices
         if (e.preventDefault) e.preventDefault();
@@ -99,10 +88,7 @@ class Whiteboard {
         this.draw(coords);
     }
 
-    handlePointerEnd(e) {
-        const inputType = this.getInputType(e);
-        console.log(`🎯 ${inputType} up`);
-        
+    handlePointerEnd() {
         this.stopDrawing();
     }
 
@@ -163,6 +149,8 @@ class Whiteboard {
 
     resizeCanvas() {
         const parent = this.canvas.parentElement;
+        if (!parent.clientWidth || !parent.clientHeight) return;
+        if (this.canvas.width === parent.clientWidth && this.canvas.height === parent.clientHeight) return;
         this.canvas.width = parent.clientWidth;
         this.canvas.height = parent.clientHeight;
         this.redrawHistory(); // Redibujar el contenido al cambiar el tamaño
@@ -189,7 +177,6 @@ class Whiteboard {
     }
 
     startDrawing(coords) {
-        console.log('🖱️ Start drawing at:', coords.x, coords.y);
         this.isDrawing = true;
         this.context.beginPath();
         this.context.moveTo(coords.x, coords.y);
@@ -200,7 +187,13 @@ class Whiteboard {
             this.isDrawing = false;
             this.context.closePath();
             this.saveState(); // Guardar estado después de un trazo
+            this.notifyChange('stroke');
         }
+    }
+
+    // Avisa a la app (main.js) que el dibujo cambió: sirve para "plantea primero" y las métricas.
+    notifyChange(type) {
+        this.canvas.dispatchEvent(new CustomEvent('whiteboard:change', { detail: { type, mode: this.mode } }));
     }
 
     draw(coords) {
@@ -233,11 +226,13 @@ class Whiteboard {
             this.historyIndex--;
             const previousState = this.history[this.historyIndex];
             this.context.putImageData(previousState, 0, 0);
+            this.notifyChange('undo');
             return true;
         } else if (this.historyIndex === 0) {
             // Go to initial blank state
             this.historyIndex = -1;
             this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.notifyChange('undo');
             return true;
         }
         return false;
@@ -248,6 +243,7 @@ class Whiteboard {
             this.historyIndex++;
             const nextState = this.history[this.historyIndex];
             this.context.putImageData(nextState, 0, 0);
+            this.notifyChange('redo');
             return true;
         }
         return false;
@@ -260,18 +256,17 @@ class Whiteboard {
         if (save) {
             this.saveState(); // Guardar el estado en blanco como inicial
         }
+        this.notifyChange('clear');
     }
     
     redrawHistory() {
-        if (this.history.length > 0) {
-            this.context.putImageData(this.history[this.history.length - 1], 0, 0);
+        const state = this.history[this.historyIndex];
+        if (state) {
+            this.context.putImageData(state, 0, 0);
         }
     }
 
     getCanvasImageData() {
-        // Debug: Log canvas state
-        console.log('🔍 Canvas capture - Width:', this.canvas.width, 'Height:', this.canvas.height);
-        
         // Crear un canvas más pequeño para reducir el tamaño de la imagen
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
@@ -291,42 +286,36 @@ class Whiteboard {
         // Dibujar la imagen escalada
         tempCtx.drawImage(this.canvas, 0, 0, tempCanvas.width, tempCanvas.height);
         
-        console.log('🔍 Canvas capture - Temp canvas size:', tempCanvas.width, 'x', tempCanvas.height);
-        
         // Convertir a JPEG con calidad reducida para menor tamaño
         return tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
     }
     
-    isEmpty() {
-        try {
-            // If we have history, check if we have more than just the initial blank state
-            if (this.history.length > 1) {
-                console.log('🔍 isEmpty() check - Has history:', this.history.length, 'states');
-                return false; // We have drawn something if there's more than initial state
-            }
+    // Miniatura liviana (data URL JPEG) para guardar en las métricas locales / vista docente.
+    getThumbnailDataURL(maxWidth = 480, quality = 0.5) {
+        const scale = Math.min(1, maxWidth / this.canvas.width);
+        const thumb = document.createElement('canvas');
+        thumb.width = Math.max(1, Math.round(this.canvas.width * scale));
+        thumb.height = Math.max(1, Math.round(this.canvas.height * scale));
+        const ctx = thumb.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, thumb.width, thumb.height);
+        ctx.drawImage(this.canvas, 0, 0, thumb.width, thumb.height);
+        return thumb.toDataURL('image/jpeg', quality);
+    }
 
-            // Check pixel data as fallback
-            const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
-            
-            // Check for any non-transparent pixels (alpha > 0) or non-white pixels
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                const r = imageData.data[i];     // Red
-                const g = imageData.data[i + 1]; // Green
-                const b = imageData.data[i + 2]; // Blue
-                const a = imageData.data[i + 3]; // Alpha
-                
-                // If we find any pixel that is not transparent and not white, canvas is not empty
-                if (a > 0 && (r !== 255 || g !== 255 || b !== 255)) {
-                    console.log('🔍 isEmpty() check - Found non-white pixel');
-                    return false;
-                }
+    // true si la pizarra no tiene ningún trazo visible.
+    // El fondo es transparente y el borrador usa destination-out, así que basta con revisar el alfa.
+    isEmpty() {
+        if (this.historyIndex <= 0) return true; // estado inicial en blanco o se deshicieron todos los trazos
+        try {
+            const { data } = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            for (let i = 3; i < data.length; i += 4) {
+                if (data[i] > 0) return false;
             }
-            
-            console.log('🔍 isEmpty() check - Canvas is empty (all white/transparent pixels)');
             return true;
         } catch (error) {
-            console.error('❌ Error in isEmpty():', error);
-            return false; // If error, assume it's not empty to be safe
+            console.error('Error en isEmpty():', error);
+            return false;
         }
     }
 }
